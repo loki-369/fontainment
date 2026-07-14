@@ -24,6 +24,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Fontainment">
 
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyDummyKeyForFontainmentInfotainmentOS" />
+
         <!-- MainActivity configured as horizontal car launcher -->
         <activity
             android:name=".MainActivity"
