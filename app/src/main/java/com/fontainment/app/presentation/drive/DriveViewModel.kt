@@ -104,6 +104,12 @@ class DriveViewModel @Inject constructor(
     val selectedPlaybackDevice = MutableStateFlow("Car Audio BT")
     val equalizerBands = MutableStateFlow(List(10) { 0.1f })
 
+    // Integration of system player metadata status and route coordinates
+    val currentRoutePoints = MutableStateFlow<List<LatLng>>(emptyList())
+    val targetDestination = MutableStateFlow<LatLng?>(null)
+    val activePlayerPackage = mediaRepository.activePlayerPackage
+    val isNotificationAccessGranted = mediaRepository.isNotificationAccessGranted
+
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
             intent?.let {
@@ -188,12 +194,38 @@ class DriveViewModel @Inject constructor(
 
                 // Simulate coordinate movement if speed > 0
                 if (speed > 0) {
-                    val currentLat = currentLatLng.value.latitude
-                    val currentLng = currentLatLng.value.longitude
-                    // Move slightly northeast (approx 0.0001 degrees per second)
-                    val nextLat = currentLat + 0.00008
-                    val nextLng = currentLng + 0.0001
-                    currentLatLng.value = LatLng(nextLat, nextLng)
+                    val target = targetDestination.value
+                    if (target != null) {
+                        val currentLat = currentLatLng.value.latitude
+                        val currentLng = currentLatLng.value.longitude
+                        val dLat = target.latitude - currentLat
+                        val dLng = target.longitude - currentLng
+                        val distance = Math.sqrt(dLat * dLat + dLng * dLng)
+                        
+                        if (distance < 0.0002) {
+                            // Arrived at destination
+                            currentLatLng.value = target
+                            targetDestination.value = null
+                            currentRoutePoints.value = emptyList()
+                        } else {
+                            // Move step towards target
+                            val step = 0.00015
+                            val nextLat = currentLat + (dLat / distance) * step
+                            val nextLng = currentLng + (dLng / distance) * step
+                            val nextPos = LatLng(nextLat, nextLng)
+                            currentLatLng.value = nextPos
+                            
+                            // Re-calculate route from new current position to target
+                            currentRoutePoints.value = generateSimulatedRoute(nextPos, target)
+                        }
+                    } else {
+                        // Standard northeast drift simulation
+                        val currentLat = currentLatLng.value.latitude
+                        val currentLng = currentLatLng.value.longitude
+                        val nextLat = currentLat + 0.00008
+                        val nextLng = currentLng + 0.0001
+                        currentLatLng.value = LatLng(nextLat, nextLng)
+                    }
                 }
 
                 val speedKmPerSecond = speed.toDouble() / 3600.0
@@ -356,6 +388,23 @@ class DriveViewModel @Inject constructor(
         }
     }
 
+    private fun generateSimulatedRoute(start: LatLng, end: LatLng): List<LatLng> {
+        val points = mutableListOf<LatLng>()
+        points.add(start)
+        val steps = 15
+        for (i in 1 until steps) {
+            val fraction = i.toDouble() / steps.toDouble()
+            val lat = start.latitude + (end.latitude - start.latitude) * fraction
+            val lng = start.longitude + (end.longitude - start.longitude) * fraction
+            // Winding block roads simulation
+            val offsetLat = if (i % 3 == 1) 0.0006 * Math.sin(fraction * Math.PI * 4) else 0.0
+            val offsetLng = if (i % 3 == 2) 0.0006 * Math.cos(fraction * Math.PI * 4) else 0.0
+            points.add(LatLng(lat + offsetLat, lng + offsetLng))
+        }
+        points.add(end)
+        return points
+    }
+
     // Google Maps Searching & Categories Quick Actions
     fun triggerQuickActionMarkers(category: String) {
         val lat = currentLatLng.value.latitude
@@ -389,18 +438,22 @@ class DriveViewModel @Inject constructor(
             else -> emptyList()
         }
         mapMarkers.value = list
+        list.firstOrNull()?.let {
+            targetDestination.value = it.position
+            currentRoutePoints.value = generateSimulatedRoute(currentLatLng.value, it.position)
+        }
     }
 
     fun searchPlaces(query: String) {
         if (query.isNotEmpty()) {
             val lat = currentLatLng.value.latitude
             val lng = currentLatLng.value.longitude
-            // Geocode simulated offset
-            val searchDest = LatLng(lat + 0.008, lng + 0.01)
+            val searchDest = LatLng(lat + 0.012, lng + 0.015)
             mapMarkers.value = listOf(
-                LatLngMarker(query, "Search Destination Point", searchDest, "Destination")
+                LatLngMarker(query, "Destination Point", searchDest, "Destination")
             )
-            currentLatLng.value = searchDest
+            targetDestination.value = searchDest
+            currentRoutePoints.value = generateSimulatedRoute(currentLatLng.value, searchDest)
         }
     }
 
