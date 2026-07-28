@@ -25,6 +25,7 @@ import com.fontainment.app.domain.repository.SettingsRepository
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,8 +43,23 @@ data class LatLngMarker(
     val category: String
 )
 
+data class NavStep(
+    val instruction: String,
+    val streetName: String,
+    val distanceMeters: Double,
+    val position: LatLng
+)
+
 enum class CallState {
     IDLE, INCOMING, ACTIVE
+}
+
+// Singleton helper to share active navigation properties globally (e.g. to Desk Mode widgets)
+object ActiveNavigationManager {
+    val destinationName = MutableStateFlow<String?>(null)
+    val currentNavInstruction = MutableStateFlow<String?>(null)
+    val distanceToTurnMeters = MutableStateFlow(0)
+    val hasActiveRoute = MutableStateFlow(false)
 }
 
 @HiltViewModel
@@ -109,6 +125,12 @@ class DriveViewModel @Inject constructor(
     val targetDestination = MutableStateFlow<LatLng?>(null)
     val activePlayerPackage = mediaRepository.activePlayerPackage
     val isNotificationAccessGranted = mediaRepository.isNotificationAccessGranted
+
+    // Live Turn-by-Turn navigation flows
+    val currentNavInstruction = MutableStateFlow<String?>(null)
+    val distanceToTurnMeters = MutableStateFlow(0)
+    private val navigationSteps = MutableStateFlow<List<NavStep>>(emptyList())
+    private var currentRouteIndex = 0
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -195,28 +217,48 @@ class DriveViewModel @Inject constructor(
                 // Simulate coordinate movement if speed > 0
                 if (speed > 0) {
                     val target = targetDestination.value
-                    if (target != null) {
-                        val currentLat = currentLatLng.value.latitude
-                        val currentLng = currentLatLng.value.longitude
-                        val dLat = target.latitude - currentLat
-                        val dLng = target.longitude - currentLng
-                        val distance = Math.sqrt(dLat * dLat + dLng * dLng)
-                        
-                        if (distance < 0.0002) {
+                    val route = currentRoutePoints.value
+                    if (target != null && route.isNotEmpty()) {
+                        if (currentRouteIndex < route.size) {
+                            val nextPoint = route[currentRouteIndex]
+                            val currentLat = currentLatLng.value.latitude
+                            val currentLng = currentLatLng.value.longitude
+                            val dLat = nextPoint.latitude - currentLat
+                            val dLng = nextPoint.longitude - currentLng
+                            val distance = Math.sqrt(dLat * dLat + dLng * dLng)
+                            
+                            if (distance < 0.00015) {
+                                currentLatLng.value = nextPoint
+                                currentRouteIndex++
+                            } else {
+                                val step = 0.0001
+                                val nextLat = currentLat + (dLat / distance) * step
+                                val nextLng = currentLng + (dLng / distance) * step
+                                currentLatLng.value = LatLng(nextLat, nextLng)
+                            }
+                            
+                            // Check active turn steps countdown
+                            val stepsList = navigationSteps.value
+                            val currentStep = stepsList.firstOrNull()
+                            if (currentStep != null) {
+                                val distToStep = calculateDistanceMeters(currentLatLng.value, currentStep.position)
+                                if (distToStep < 35.0) {
+                                    val nextSteps = stepsList.drop(1)
+                                    navigationSteps.value = nextSteps
+                                    currentNavInstruction.value = nextSteps.firstOrNull()?.instruction ?: "Drive to destination"
+                                    distanceToTurnMeters.value = nextSteps.firstOrNull()?.distanceMeters?.toInt() ?: 0
+                                } else {
+                                    distanceToTurnMeters.value = distToStep.toInt()
+                                }
+                            }
+                        } else {
                             // Arrived at destination
                             currentLatLng.value = target
                             targetDestination.value = null
                             currentRoutePoints.value = emptyList()
-                        } else {
-                            // Move step towards target
-                            val step = 0.00015
-                            val nextLat = currentLat + (dLat / distance) * step
-                            val nextLng = currentLng + (dLng / distance) * step
-                            val nextPos = LatLng(nextLat, nextLng)
-                            currentLatLng.value = nextPos
-                            
-                            // Re-calculate route from new current position to target
-                            currentRoutePoints.value = generateSimulatedRoute(nextPos, target)
+                            navigationSteps.value = emptyList()
+                            currentNavInstruction.value = "Arrived at destination"
+                            distanceToTurnMeters.value = 0
                         }
                     } else {
                         // Standard northeast drift simulation
@@ -227,6 +269,11 @@ class DriveViewModel @Inject constructor(
                         currentLatLng.value = LatLng(nextLat, nextLng)
                     }
                 }
+
+                // Update global navigation status manager
+                ActiveNavigationManager.hasActiveRoute.value = targetDestination.value != null
+                ActiveNavigationManager.currentNavInstruction.value = currentNavInstruction.value
+                ActiveNavigationManager.distanceToTurnMeters.value = distanceToTurnMeters.value
 
                 val speedKmPerSecond = speed.toDouble() / 3600.0
                 val newDistance = _vehicleState.value.tripDistanceKm + speedKmPerSecond
@@ -257,6 +304,19 @@ class DriveViewModel @Inject constructor(
                 updateNetworkStatus()
             }
         }
+    }
+
+    private fun calculateDistanceMeters(p1: LatLng, p2: LatLng): Double {
+        val r = 6371000.0
+        val lat1 = Math.toRadians(p1.latitude)
+        val lat2 = Math.toRadians(p2.latitude)
+        val dLat = lat2 - lat1
+        val dLng = Math.toRadians(p2.longitude - p1.longitude)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1) * Math.cos(lat2) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return r * c
     }
 
     private fun updateNetworkStatus() {
@@ -396,13 +456,125 @@ class DriveViewModel @Inject constructor(
             val fraction = i.toDouble() / steps.toDouble()
             val lat = start.latitude + (end.latitude - start.latitude) * fraction
             val lng = start.longitude + (end.longitude - start.longitude) * fraction
-            // Winding block roads simulation
             val offsetLat = if (i % 3 == 1) 0.0006 * Math.sin(fraction * Math.PI * 4) else 0.0
             val offsetLng = if (i % 3 == 2) 0.0006 * Math.cos(fraction * Math.PI * 4) else 0.0
             points.add(LatLng(lat + offsetLat, lng + offsetLng))
         }
         points.add(end)
         return points
+    }
+
+    private fun buildManeuverInstruction(type: String, modifier: String, streetName: String): String {
+        val action = when (type.lowercase()) {
+            "turn" -> when (modifier.lowercase()) {
+                "left" -> "Turn left"
+                "right" -> "Turn right"
+                "sharp left" -> "Sharp left turn"
+                "sharp right" -> "Sharp right turn"
+                "slight left" -> "Slight left turn"
+                "slight right" -> "Slight right turn"
+                else -> "Turn"
+            }
+            "merge" -> "Merge"
+            "exit roundabout" -> "Exit roundabout"
+            "off ramp" -> "Take off ramp"
+            "on ramp" -> "Take on ramp"
+            "roundabout" -> "Enter roundabout"
+            "arrive" -> "Arriving"
+            else -> type.replaceFirstChar { it.uppercase() }
+        }
+        return if (streetName.isNotEmpty() && streetName != "Street") {
+            "$action onto $streetName"
+        } else {
+            action
+        }
+    }
+
+    private fun fetchOSRMRoute(start: LatLng, end: LatLng, destinationName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val urlString = "https://router.project-osrm.org/route/v1/driving/" +
+                        "${start.longitude},${start.latitude};${end.longitude},${end.latitude}" +
+                        "?overview=full&geometries=geojson&steps=true"
+                val url = java.net.URL(urlString)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 6000
+                connection.readTimeout = 6000
+                
+                if (connection.responseCode == 200) {
+                    val text = connection.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(text)
+                    val routes = json.getJSONArray("routes")
+                    if (routes.length() > 0) {
+                        val route = routes.getJSONObject(0)
+                        val geometry = route.getJSONObject("geometry")
+                        val coordinates = geometry.getJSONArray("coordinates")
+                        val routePointsList = mutableListOf<LatLng>()
+                        for (i in 0 until coordinates.length()) {
+                            val point = coordinates.getJSONArray(i)
+                            val lng = point.getDouble(0)
+                            val lat = point.getDouble(1)
+                            routePointsList.add(LatLng(lat, lng))
+                        }
+                        
+                        val parsedSteps = mutableListOf<NavStep>()
+                        val legs = route.getJSONArray("legs")
+                        if (legs.length() > 0) {
+                            val leg = legs.getJSONObject(0)
+                            val steps = leg.getJSONArray("steps")
+                            for (j in 0 until steps.length()) {
+                                val step = steps.getJSONObject(j)
+                                val name = step.getString("name").ifEmpty { "Street" }
+                                val distance = step.getDouble("distance")
+                                val maneuver = step.getJSONObject("maneuver")
+                                val type = maneuver.getString("type")
+                                val modifier = maneuver.optString("modifier", "")
+                                
+                                val stepLocation = maneuver.getJSONArray("location")
+                                val stepLng = stepLocation.getDouble(0)
+                                val stepLat = stepLocation.getDouble(1)
+                                
+                                val instructionText = buildManeuverInstruction(type, modifier, name)
+                                parsedSteps.add(NavStep(instructionText, name, distance, LatLng(stepLat, stepLng)))
+                            }
+                        }
+                        
+                        launch(Dispatchers.Main) {
+                            targetDestination.value = end
+                            currentRoutePoints.value = routePointsList
+                            navigationSteps.value = parsedSteps
+                            currentRouteIndex = 0
+                            currentNavInstruction.value = parsedSteps.firstOrNull()?.instruction ?: "Drive to $destinationName"
+                            distanceToTurnMeters.value = parsedSteps.firstOrNull()?.distanceMeters?.toInt() ?: 0
+                            ActiveNavigationManager.destinationName.value = destinationName
+                            ActiveNavigationManager.hasActiveRoute.value = true
+                        }
+                        return@launch
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            // Fallback
+            launch(Dispatchers.Main) {
+                val mockRoute = generateSimulatedRoute(start, end)
+                targetDestination.value = end
+                currentRoutePoints.value = mockRoute
+                currentRouteIndex = 0
+                val mockSteps = listOf(
+                    NavStep("In 500m, Turn Left on Charleston Rd", "Charleston Rd", 500.0, mockRoute[5]),
+                    NavStep("In 1.2km, Merge onto US-101 North", "US-101 North", 1200.0, mockRoute[10]),
+                    NavStep("Drive to destination", destinationName, 300.0, end)
+                )
+                navigationSteps.value = mockSteps
+                currentNavInstruction.value = mockSteps.first().instruction
+                distanceToTurnMeters.value = 500
+                ActiveNavigationManager.destinationName.value = destinationName
+                ActiveNavigationManager.hasActiveRoute.value = true
+            }
+        }
     }
 
     // Google Maps Searching & Categories Quick Actions
@@ -439,21 +611,36 @@ class DriveViewModel @Inject constructor(
         }
         mapMarkers.value = list
         list.firstOrNull()?.let {
-            targetDestination.value = it.position
-            currentRoutePoints.value = generateSimulatedRoute(currentLatLng.value, it.position)
+            fetchOSRMRoute(currentLatLng.value, it.position, it.title)
         }
     }
 
     fun searchPlaces(query: String) {
         if (query.isNotEmpty()) {
-            val lat = currentLatLng.value.latitude
-            val lng = currentLatLng.value.longitude
-            val searchDest = LatLng(lat + 0.012, lng + 0.015)
-            mapMarkers.value = listOf(
-                LatLngMarker(query, "Destination Point", searchDest, "Destination")
-            )
-            targetDestination.value = searchDest
-            currentRoutePoints.value = generateSimulatedRoute(currentLatLng.value, searchDest)
+            viewModelScope.launch(Dispatchers.IO) {
+                var searchDest: LatLng? = null
+                try {
+                    val geocoder = android.location.Geocoder(context)
+                    val addresses = geocoder.getFromLocationName(query, 1)
+                    if (!addresses.isNullOrEmpty()) {
+                        val address = addresses[0]
+                        searchDest = LatLng(address.latitude, address.longitude)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                launch(Dispatchers.Main) {
+                    val finalDest = searchDest ?: LatLng(
+                        currentLatLng.value.latitude + 0.012, 
+                        currentLatLng.value.longitude + 0.015
+                    )
+                    mapMarkers.value = listOf(
+                        LatLngMarker(query, "Destination Point", finalDest, "Destination")
+                    )
+                    fetchOSRMRoute(currentLatLng.value, finalDest, query)
+                }
+            }
         }
     }
 
@@ -472,7 +659,8 @@ class DriveViewModel @Inject constructor(
                 "Volume up",
                 "Call Mom",
                 "Theme Nothing Style",
-                "Open settings"
+                "Open settings",
+                "Play Coldplay on Spotify"
             )
             val randomCmd = commands.random()
             _assistantSpeechText.value = "\"$randomCmd\""
@@ -493,6 +681,21 @@ class DriveViewModel @Inject constructor(
                     val placeName = command.substringAfter("navigate to ", "").substringAfter("find nearest ", "").ifEmpty { "Simulated Target" }
                     searchPlaces(placeName)
                 }
+                cmdClean.contains("play") && cmdClean.contains("spotify") -> {
+                    val query = command.substringAfter("play ", "").substringBefore(" on spotify").ifEmpty { "Coldplay" }
+                    val intent = Intent(android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+                        putExtra(android.provider.MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+                        putExtra(android.provider.MediaStore.EXTRA_MEDIA_QUERY, query)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        `package` = "com.spotify.music"
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                        launchIntent?.let { context.startActivity(it) }
+                    }
+                }
                 cmdClean.contains("play") || cmdClean.contains("resume") -> {
                     mediaRepository.play()
                 }
@@ -506,32 +709,29 @@ class DriveViewModel @Inject constructor(
                     setVolume((musicVolume.value - 0.15f).coerceAtLeast(0f))
                 }
                 cmdClean.contains("call") -> {
-                    val contact = command.substringAfter("call ", "John Doe")
-                    callerName.value = contact
-                    callerNumber.value = "Voice Dialed Contact"
-                    activeCallState.value = CallState.ACTIVE
-                    activeCallTimeSeconds.value = 0L
+                    val contact = command.substringAfter("call ", "").ifEmpty { "John Doe" }
+                    makeCall(contact)
                 }
                 cmdClean.contains("theme") -> {
-                    val themeName = command.substringAfter("theme ", "Tesla Dark")
-                    // Capitalize
-                    val formattedTheme = themeName.split(" ").joinToString(" ") { it.replaceFirstChar { it.uppercase() } }
-                    settingsRepository.setTheme(formattedTheme)
+                    val theme = command.substringAfter("theme ", "").trim()
+                    // Map theme match
+                    val themeNameMapped = when {
+                        theme.contains("tesla") -> "Tesla Dark"
+                        theme.contains("bmw") -> "BMW Blue"
+                        theme.contains("amoled") -> "AMOLED Black"
+                        theme.contains("nothing") -> "Nothing Style"
+                        theme.contains("lucid") -> "Lucid White"
+                        theme.contains("midnight") -> "Midnight Black"
+                        theme.contains("minimal") -> "Minimal Gray"
+                        theme.contains("classic") -> "Classic Dashboard"
+                        else -> "Wallpaper Adaptive"
+                    }
+                    settingsRepository.setTheme(themeNameMapped)
+                }
+                cmdClean.contains("settings") -> {
+                    // Open settings panel
                 }
             }
         }
     }
-
-    override fun onCleared() {
-        try {
-            context.unregisterReceiver(batteryReceiver)
-        } catch (e: Exception) {
-            // Ignored
-        }
-        sensorManager.unregisterListener(this)
-        locationManager.removeUpdates(this)
-        timeTrackerJob?.cancel()
-        super.onCleared()
-    }
 }
-
