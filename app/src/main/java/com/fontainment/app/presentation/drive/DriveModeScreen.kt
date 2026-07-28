@@ -217,6 +217,9 @@ fun DriveModeScreen(
     val isNotificationAccessGranted by viewModel.isNotificationAccessGranted.collectAsState()
     val activePlayerPackage by viewModel.activePlayerPackage.collectAsState()
 
+    val currentNavInstruction by viewModel.currentNavInstruction.collectAsState()
+    val distanceToTurnMeters by viewModel.distanceToTurnMeters.collectAsState()
+
     val bitmap = remember(currentTrack.albumArtUri) {
         if (currentTrack.albumArtUri != null && currentTrack.albumArtUri!!.startsWith("file://")) {
             try {
@@ -348,6 +351,61 @@ fun DriveModeScreen(
                                     color = primaryColor,
                                     width = 10f
                                 )
+                            }
+                        }
+                    }
+
+                    // Turn-by-Turn Instruction Banner
+                    if (currentNavInstruction != null && currentNavInstruction!!.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 16.dp)
+                                .width(360.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xEE141519)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, primaryColor.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(primaryColor.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Navigation,
+                                        contentDescription = "Turn icon",
+                                        tint = primaryColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = currentNavInstruction!!,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val distStr = if (distanceToTurnMeters > 1000) {
+                                        String.format(Locale.getDefault(), "In %.1f km", distanceToTurnMeters / 1000.0)
+                                    } else {
+                                        "In $distanceToTurnMeters m"
+                                    }
+                                    Text(
+                                        text = distStr,
+                                        color = Color.Gray,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
