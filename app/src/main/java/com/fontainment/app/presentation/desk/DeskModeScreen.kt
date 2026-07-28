@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -90,6 +91,11 @@ fun DeskModeScreen(
     val isCharging by viewModel.isCharging.collectAsState()
     val ramUsagePercent by viewModel.ramUsagePercent.collectAsState()
     val deviceTemp by viewModel.deviceTemp.collectAsState()
+
+    val hasActiveRoute by viewModel.hasActiveRoute.collectAsState()
+    val destinationName by viewModel.destinationName.collectAsState()
+    val currentNavInstruction by viewModel.currentNavInstruction.collectAsState()
+    val distanceToTurnMeters by viewModel.distanceToTurnMeters.collectAsState()
 
     // Smooth sweeping clock rendering frame ticker (60 FPS)
     var frameTime by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -612,45 +618,91 @@ fun DeskModeScreen(
                                         }
                                     }
                                     2 -> {
-                                        // Google Photos Slideshow Widget mockup
-                                        // Uses rotating scenic gradient cards to mock slideshow visuals
-                                        val gradientScenery = listOf(
-                                            Pair("Alps Scenic Pass", Brush.linearGradient(listOf(Color(0xFF2196F3), Color(0xFF00BCD4)))),
-                                            Pair("Sahara Desert Dunes", Brush.linearGradient(listOf(Color(0xFFFF9800), Color(0xFFFF5722)))),
-                                            Pair("Pacific Coast Highway", Brush.linearGradient(listOf(Color(0xFF4CAF50), Color(0xFF009688))))
-                                        )
-                                        val photoIndex = ((cal.get(Calendar.SECOND) / 6) % gradientScenery.size).toInt()
-                                        val photo = gradientScenery[photoIndex]
-                                        
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(photo.second)
-                                                .padding(10.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopStart)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .background(Color.Black.copy(alpha = 0.6f))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                                verticalAlignment = Alignment.CenterVertically
+                                        if (hasActiveRoute) {
+                                            // Real-time navigation tracker linked widget card
+                                            Column(
+                                                modifier = Modifier.fillMaxSize(),
+                                                verticalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Icon(Icons.Default.Image, contentDescription = "Slideshow photo logo", tint = Color.White, modifier = Modifier.size(10.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("PHOTOS", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text("LIVE NAVIGATION", color = MaterialTheme.colorScheme.primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                    Icon(Icons.Default.Navigation, contentDescription = "Active route indicator", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
+                                                }
+                                                
+                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        text = destinationName ?: "Active Route",
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        text = currentNavInstruction ?: "Drive carefully",
+                                                        color = Color.LightGray,
+                                                        fontSize = 11.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+
+                                                val distStr = if (distanceToTurnMeters > 1000) {
+                                                    String.format(Locale.getDefault(), "In %.1f km", distanceToTurnMeters / 1000.0)
+                                                } else {
+                                                    "In $distanceToTurnMeters m"
+                                                }
+                                                Text(
+                                                    text = distStr,
+                                                    color = Color.Gray,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
                                             }
-                                            Text(
-                                                text = photo.first,
-                                                color = Color.White,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier
-                                                    .align(Alignment.BottomStart)
-                                                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        } else {
+                                            // Google Photos Slideshow Widget mockup
+                                            val gradientScenery = listOf(
+                                                Pair("Alps Scenic Pass", Brush.linearGradient(listOf(Color(0xFF2196F3), Color(0xFF00BCD4)))),
+                                                Pair("Sahara Desert Dunes", Brush.linearGradient(listOf(Color(0xFFFF9800), Color(0xFFFF5722)))),
+                                                Pair("Pacific Coast Highway", Brush.linearGradient(listOf(Color(0xFF4CAF50), Color(0xFF009688))))
                                             )
+                                            val photoIndex = ((cal.get(Calendar.SECOND) / 6) % gradientScenery.size).toInt()
+                                            val photo = gradientScenery[photoIndex]
+                                            
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(photo.second)
+                                                    .padding(10.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopStart)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(Color.Black.copy(alpha = 0.6f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(Icons.Default.Image, contentDescription = "Slideshow photo logo", tint = Color.White, modifier = Modifier.size(10.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("PHOTOS", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                Text(
+                                                    text = photo.first,
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomStart)
+                                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
