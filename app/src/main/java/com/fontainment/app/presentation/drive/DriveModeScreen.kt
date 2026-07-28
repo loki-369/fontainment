@@ -104,7 +104,11 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -208,6 +212,23 @@ fun DriveModeScreen(
     val playbackDevices by viewModel.playbackDevices.collectAsState()
     val selectedPlaybackDevice by viewModel.selectedPlaybackDevice.collectAsState()
     val equalizerBands by viewModel.equalizerBands.collectAsState()
+
+    val routePoints by viewModel.currentRoutePoints.collectAsState()
+    val isNotificationAccessGranted by viewModel.isNotificationAccessGranted.collectAsState()
+    val activePlayerPackage by viewModel.activePlayerPackage.collectAsState()
+
+    val bitmap = remember(currentTrack.albumArtUri) {
+        if (currentTrack.albumArtUri != null && currentTrack.albumArtUri!!.startsWith("file://")) {
+            try {
+                val path = currentTrack.albumArtUri!!.removePrefix("file://")
+                android.graphics.BitmapFactory.decodeFile(path)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
 
     var showSearchDialog by remember { mutableStateOf(false) }
     var showDevicesDialog by remember { mutableStateOf(false) }
@@ -318,6 +339,14 @@ fun DriveModeScreen(
                                     state = MarkerState(position = marker.position),
                                     title = marker.title,
                                     snippet = marker.snippet
+                                )
+                            }
+
+                            if (routePoints.isNotEmpty()) {
+                                Polyline(
+                                    points = routePoints,
+                                    color = primaryColor,
+                                    width = 10f
                                 )
                             }
                         }
@@ -627,7 +656,26 @@ fun DriveModeScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("SPOTIFY REMOTE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                if (!isNotificationAccessGranted) {
+                                    Text(
+                                        text = "LINK SYSTEM PLAYER",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        modifier = Modifier.clickable {
+                                            try {
+                                                val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    val activePackageLabel = activePlayerPackage?.substringAfterLast(".")?.uppercase() ?: "SYSTEM"
+                                    Text("$activePackageLabel REMOTE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                }
                             }
                             IconButton(onClick = { showDevicesDialog = true }) {
                                 Icon(Icons.Default.Devices, contentDescription = "Playback device output picker", tint = Color.Gray, modifier = Modifier.size(18.dp))
@@ -662,12 +710,21 @@ fun DriveModeScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = currentTrack.title.take(1),
-                                    color = Color.White,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Album Art",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Text(
+                                        text = currentTrack.title.take(1),
+                                        color = Color.White,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.width(14.dp))
