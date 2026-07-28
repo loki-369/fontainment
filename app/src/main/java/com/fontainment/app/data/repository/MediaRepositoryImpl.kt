@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.AudioManager
 import android.media.MediaMetadata
+import android.media.MediaPlayer
 import android.media.session.MediaController
 import android.media.session.PlaybackState
 import android.provider.Settings
@@ -28,18 +29,39 @@ class MediaRepositoryImpl @Inject constructor(
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    private val _currentTrack = MutableStateFlow(
+    // Real audio stream track models
+    private val onlineTracks = listOf(
         SpotifyTrack(
-            title = "Starlight",
-            artist = "Muse",
-            album = "Black Holes and Revelations",
-            durationMs = 240000,
-            progressMs = 45000,
+            title = "Lofi Dreams",
+            artist = "Lofi Sleep",
+            album = "Chill Beats Vol. 1",
+            durationMs = 210000,
+            progressMs = 0,
             isPlaying = false,
             albumArtUri = null,
             isFavorite = false
+        ),
+        SpotifyTrack(
+            title = "Synthwave Cruise",
+            artist = "Retro Rider",
+            album = "Neon Grid",
+            durationMs = 244000,
+            progressMs = 0,
+            isPlaying = false,
+            albumArtUri = null,
+            isFavorite = true
         )
     )
+
+    private val streamUrls = listOf(
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
+    )
+
+    private var currentTrackIndex = 0
+    private var mediaPlayer: MediaPlayer? = null
+
+    private val _currentTrack = MutableStateFlow(onlineTracks[0])
     override val currentTrack: StateFlow<SpotifyTrack> = _currentTrack.asStateFlow()
 
     private val _volume = MutableStateFlow(0.7f)
@@ -89,14 +111,13 @@ class MediaRepositoryImpl @Inject constructor(
                         )
                     }
                 } else {
-                    // Mock local simulation fallback
-                    val track = _currentTrack.value
-                    if (track.isPlaying) {
-                        val nextProgress = track.progressMs + 1000
-                        if (nextProgress >= track.durationMs) {
-                            skipToNext()
-                        } else {
-                            _currentTrack.value = track.copy(progressMs = nextProgress)
+                    // Sync progress from active MediaPlayer
+                    mediaPlayer?.let { mp ->
+                        if (mp.isPlaying) {
+                            _currentTrack.value = _currentTrack.value.copy(
+                                progressMs = mp.currentPosition.toLong(),
+                                isPlaying = true
+                            )
                         }
                     }
                 }
@@ -115,6 +136,10 @@ class MediaRepositoryImpl @Inject constructor(
         _activePlayerPackage.value = controller?.packageName
 
         if (controller != null) {
+            // Stop local MediaPlayer if Spotify takes over
+            mediaPlayer?.release()
+            mediaPlayer = null
+
             controller.registerCallback(controllerCallback)
             updateMetadata(controller.metadata)
             updatePlaybackState(controller.playbackState)
@@ -183,7 +208,31 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.play()
         } else {
-            _currentTrack.value = _currentTrack.value.copy(isPlaying = true)
+            // Play built-in internet audio stream via MediaPlayer
+            if (mediaPlayer == null) {
+                try {
+                    mediaPlayer = MediaPlayer().apply {
+                        setAudioStreamType(AudioManager.STREAM_MUSIC)
+                        setDataSource(streamUrls[currentTrackIndex])
+                        setOnPreparedListener { mp ->
+                            mp.start()
+                            _currentTrack.value = _currentTrack.value.copy(
+                                isPlaying = true,
+                                durationMs = mp.duration.toLong()
+                            )
+                        }
+                        setOnCompletionListener {
+                            skipToNext()
+                        }
+                        prepareAsync()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                mediaPlayer?.start()
+                _currentTrack.value = _currentTrack.value.copy(isPlaying = true)
+            }
         }
     }
 
@@ -192,6 +241,7 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.pause()
         } else {
+            mediaPlayer?.pause()
             _currentTrack.value = _currentTrack.value.copy(isPlaying = false)
         }
     }
@@ -201,15 +251,11 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.skipToNext()
         } else {
-            // Mock simple playlist transitions
-            val tracks = listOf(
-                SpotifyTrack("Blinding Lights", "The Weeknd", "After Hours", 200000, 0, true, null, false),
-                SpotifyTrack("Sweater Weather", "The Neighbourhood", "I Love You.", 240000, 0, true, null, true),
-                SpotifyTrack("Starlight", "Muse", "Black Holes and Revelations", 240000, 0, true, null, false)
-            )
-            val currentIndex = tracks.indexOfFirst { it.title == _currentTrack.value.title }
-            val nextIndex = (currentIndex + 1) % tracks.size
-            _currentTrack.value = tracks[nextIndex]
+            mediaPlayer?.release()
+            mediaPlayer = null
+            currentTrackIndex = (currentTrackIndex + 1) % streamUrls.size
+            _currentTrack.value = onlineTracks[currentTrackIndex]
+            play()
         }
     }
 
@@ -218,15 +264,11 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.skipToPrevious()
         } else {
-            val tracks = listOf(
-                SpotifyTrack("Blinding Lights", "The Weeknd", "After Hours", 200000, 0, true, null, false),
-                SpotifyTrack("Sweater Weather", "The Neighbourhood", "I Love You.", 240000, 0, true, null, true),
-                SpotifyTrack("Starlight", "Muse", "Black Holes and Revelations", 240000, 0, true, null, false)
-            )
-            var currentIndex = tracks.indexOfFirst { it.title == _currentTrack.value.title }
-            if (currentIndex == -1) currentIndex = 0
-            val prevIndex = if (currentIndex - 1 < 0) tracks.size - 1 else currentIndex - 1
-            _currentTrack.value = tracks[prevIndex]
+            mediaPlayer?.release()
+            mediaPlayer = null
+            currentTrackIndex = if (currentTrackIndex - 1 < 0) streamUrls.size - 1 else currentTrackIndex - 1
+            _currentTrack.value = onlineTracks[currentTrackIndex]
+            play()
         }
     }
 
@@ -252,6 +294,7 @@ class MediaRepositoryImpl @Inject constructor(
         val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val targetVolume = (boundedVal * maxVolume).toInt()
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, 0)
+        mediaPlayer?.setVolume(boundedVal, boundedVal)
     }
 
     override fun seekTo(positionMs: Long) {
@@ -259,9 +302,10 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.seekTo(positionMs)
         } else {
-            val current = _currentTrack.value
-            val boundedPos = positionMs.coerceIn(0L, current.durationMs)
-            _currentTrack.value = current.copy(progressMs = boundedPos)
+            mediaPlayer?.let { mp ->
+                mp.seekTo(positionMs.toInt())
+                _currentTrack.value = _currentTrack.value.copy(progressMs = positionMs)
+            }
         }
     }
 }
