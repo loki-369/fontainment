@@ -13,6 +13,7 @@ import com.fontainment.app.domain.model.SpotifyTrack
 import com.fontainment.app.domain.model.WidgetType
 import com.fontainment.app.domain.repository.MediaRepository
 import com.fontainment.app.domain.repository.SettingsRepository
+import com.fontainment.app.presentation.drive.ActiveNavigationManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -53,6 +54,12 @@ class DeskViewModel @Inject constructor(
     )
 
     val currentTrack: StateFlow<SpotifyTrack> = mediaRepository.currentTrack
+
+    // Live active navigation stats shared from DriveMode
+    val destinationName: StateFlow<String?> = ActiveNavigationManager.destinationName
+    val currentNavInstruction: StateFlow<String?> = ActiveNavigationManager.currentNavInstruction
+    val distanceToTurnMeters: StateFlow<Int> = ActiveNavigationManager.distanceToTurnMeters
+    val hasActiveRoute: StateFlow<Boolean> = ActiveNavigationManager.hasActiveRoute
 
     // Real Telemetry states
     private val _batteryPercentage = MutableStateFlow(100)
