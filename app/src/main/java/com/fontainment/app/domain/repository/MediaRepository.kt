@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 interface MediaRepository {
     val currentTrack: StateFlow<SpotifyTrack>
     val volume: StateFlow<Float>
+    val isNotificationAccessGranted: StateFlow<Boolean>
+    val activePlayerPackage: StateFlow<String?>
 
     fun play()
     fun pause()
