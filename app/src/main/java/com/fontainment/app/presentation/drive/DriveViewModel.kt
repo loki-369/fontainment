@@ -166,6 +166,14 @@ class DriveViewModel @Inject constructor(
     @SuppressLint("MissingPermission")
     private fun registerLocationListener() {
         try {
+            // Attempt to snap map camera to best last known location immediately
+            val lastKnownGps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            val lastKnownNetwork = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            val bestLocation = lastKnownGps ?: lastKnownNetwork
+            bestLocation?.let {
+                currentLatLng.value = LatLng(it.latitude, it.longitude)
+            }
+
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
@@ -261,12 +269,7 @@ class DriveViewModel @Inject constructor(
                             distanceToTurnMeters.value = 0
                         }
                     } else {
-                        // Standard northeast drift simulation
-                        val currentLat = currentLatLng.value.latitude
-                        val currentLng = currentLatLng.value.longitude
-                        val nextLat = currentLat + 0.00008
-                        val nextLng = currentLng + 0.0001
-                        currentLatLng.value = LatLng(nextLat, nextLng)
+                        // No active route, lock map coordinates to your actual device's GPS telemetry (no drift)
                     }
                 }
 
