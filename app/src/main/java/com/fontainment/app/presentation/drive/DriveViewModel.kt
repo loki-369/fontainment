@@ -685,7 +685,7 @@ class DriveViewModel @Inject constructor(
                     val query = command.substringAfter("play ", "").substringBefore(" on spotify").ifEmpty { "Coldplay" }
                     val intent = Intent(android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
                         putExtra(android.provider.MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
-                        putExtra(android.provider.MediaStore.EXTRA_MEDIA_QUERY, query)
+                        putExtra("query", query)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         `package` = "com.spotify.music"
                     }
