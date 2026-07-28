@@ -67,6 +67,17 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_CATEGORY" android:value="Automotive launch integration trigger" />
         </service>
 
+        <!-- Fontainment Media Integration Listener -->
+        <service
+            android:name=".data.service.FontainmentNotificationListener"
+            android:label="Fontainment Media Integration"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Receiver to start Automation Service on boot -->
         <receiver
             android:name=".data.receiver.BootReceiver"
