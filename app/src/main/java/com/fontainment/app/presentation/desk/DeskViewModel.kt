@@ -54,6 +54,8 @@ class DeskViewModel @Inject constructor(
     )
 
     val currentTrack: StateFlow<SpotifyTrack> = mediaRepository.currentTrack
+    val isNotificationAccessGranted: StateFlow<Boolean> = mediaRepository.isNotificationAccessGranted
+    val activePlayerPackage: StateFlow<String?> = mediaRepository.activePlayerPackage
 
     // Live active navigation stats shared from DriveMode
     val destinationName: StateFlow<String?> = ActiveNavigationManager.destinationName
@@ -136,6 +138,7 @@ class DeskViewModel @Inject constructor(
     }
 
     fun skipNext() = mediaRepository.skipToNext()
+    fun skipPrevious() = mediaRepository.skipToPrevious()
 
     override fun onCleared() {
         try {
