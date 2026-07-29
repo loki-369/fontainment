@@ -782,6 +782,7 @@ fun DriveModeScreen(
                         }
                     }
                 }
+            }
 
                 // RIGHT PANEL: Premium Spotify Player with Equalizer & blurred background
                 if (!isMinimalMode) {
