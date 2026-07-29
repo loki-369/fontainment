@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalCafe
@@ -241,6 +243,10 @@ fun DriveModeScreen(
     // Toggle between Google Map and premium Hud Map styling fallback
     var mapHUDViewMode by remember { mutableStateOf(false) }
 
+    // Toggle between standard split grid and ultra minimal full screen map layout
+    var isMinimalMode by remember { mutableStateOf(false) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+
     // Map camera management
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(currentLatLng, 15f)
@@ -267,10 +273,10 @@ fun DriveModeScreen(
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // LEFT PANEL: Interactive Google Map
+                // LEFT PANEL: Interactive Google Map (Dynamic weight to expand to full screen!)
                 Box(
                     modifier = Modifier
-                        .weight(4.2f)
+                        .weight(if (isMinimalMode) 12f else 4.2f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF141519))
@@ -410,22 +416,47 @@ fun DriveModeScreen(
                         }
                     }
 
-                    // Map Toggle HUD / Real Map
-                    Box(
+                    // Consolidated top-right floating map controls
+                    Column(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(16.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .clickable { mapHUDViewMode = !mapHUDViewMode }
-                            .padding(10.dp)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.End
                     ) {
-                        Icon(
-                            imageVector = if (mapHUDViewMode) Icons.Default.DirectionsCar else Icons.Default.Map,
-                            contentDescription = "Map Style Toggle",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        // Button 1: Layout toggle (Minimal Mode / Grid Dashboard)
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.7f))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                                .clickable { isMinimalMode = !isMinimalMode }
+                                .padding(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isMinimalMode) Icons.Default.GridView else Icons.Default.Fullscreen,
+                                contentDescription = "Toggle Layout",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Button 2: Map style toggle (HUD / satellite)
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.7f))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                                .clickable { mapHUDViewMode = !mapHUDViewMode }
+                                .padding(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (mapHUDViewMode) Icons.Default.DirectionsCar else Icons.Default.Map,
+                                contentDescription = "Map Style Toggle",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
 
                     // Navigation Overlay Card (Glassmorphism design)
@@ -544,16 +575,99 @@ fun DriveModeScreen(
                     ) {
                         Text(vehicleState.currentRoadName.uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
+
+                    // Floating Speed and Music Cards for Minimal HUD Mode overlay
+                    if (isMinimalMode) {
+                        // Floating speedometer (bottom left)
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp)
+                                .width(130.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.85f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "${vehicleState.currentSpeedKmh}",
+                                    color = Color.White,
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.Light
+                                )
+                                Text(
+                                    text = speedUnit,
+                                    color = Color.Gray,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Floating music player (bottom right)
+                        Card(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                                .width(230.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.85f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                ) {
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Cover",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Center).size(20.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(currentTrack.title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(currentTrack.artist, color = Color.Gray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                IconButton(
+                                    onClick = { viewModel.playPauseMusic() },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // CENTER PANEL: Instrument Cluster & Rotating Compass
-                Column(
-                    modifier = Modifier
-                        .weight(3f)
-                        .fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
+                if (!isMinimalMode) {
+                    Column(
+                        modifier = Modifier
+                            .weight(3f)
+                            .fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
                     // Clock and Date Header
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val timeString = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -670,14 +784,15 @@ fun DriveModeScreen(
                 }
 
                 // RIGHT PANEL: Premium Spotify Player with Equalizer & blurred background
-                Box(
-                    modifier = Modifier
-                        .weight(4.2f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
-                ) {
+                if (!isMinimalMode) {
+                    Box(
+                        modifier = Modifier
+                            .weight(4.2f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                    ) {
                     // Album art blurred background overlay
                     Box(
                         modifier = Modifier
@@ -722,12 +837,7 @@ fun DriveModeScreen(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp,
                                         modifier = Modifier.clickable {
-                                            try {
-                                                val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
+                                            showPermissionDialog = true
                                         }
                                     )
                                 } else {
@@ -917,6 +1027,7 @@ fun DriveModeScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(Icons.AutoMirrored.Filled.VolumeUp, "Increase Vol", tint = Color.Gray, modifier = Modifier.size(14.dp))
                         }
+                    }
                     }
                 }
             }
@@ -1464,6 +1575,101 @@ fun DriveModeScreen(
                                 modifier = Modifier.weight(1f).height(46.dp)
                             ) {
                                 Text("Navigate", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // SPOTIFY CONNECTIVITY AND INSTRUCTIONAL DIALOG
+        if (showPermissionDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .clickable { showPermissionDialog = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier.width(420.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF16171A)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Spotify & Media Linking",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = "To show real-time Spotify or system player cover art and track status, please complete the following steps:\n\n" +
+                                   "1. Click **Grant Listener Access** below, find **Fontainment Media Integration** and toggle it ON.\n" +
+                                   "2. If Spotify is closed or not playing, click **Launch Spotify** to trigger background sessions.",
+                            color = Color.LightGray,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            textAlign = TextAlign.Start
+                        )
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = {
+                                    showPermissionDialog = false
+                                    try {
+                                        val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Failed to open settings", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                            ) {
+                                Text("Grant Listener Access", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                            
+                            Button(
+                                onClick = {
+                                    showPermissionDialog = false
+                                    try {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                        if (launchIntent != null) {
+                                            context.startActivity(launchIntent)
+                                        } else {
+                                            Toast.makeText(context, "Spotify is not installed on this device", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Unable to start Spotify", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.08f)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                            ) {
+                                Text("Launch Spotify App", color = Color.White)
+                            }
+                            
+                            Button(
+                                onClick = { showPermissionDialog = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                            ) {
+                                Text("Cancel", color = Color.Gray)
                             }
                         }
                     }
