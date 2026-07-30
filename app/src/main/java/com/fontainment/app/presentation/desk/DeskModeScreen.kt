@@ -112,8 +112,8 @@ fun DeskModeScreen(
     val distanceToTurnMeters by viewModel.distanceToTurnMeters.collectAsState()
 
     // Real-time notification listener link checks
-    val isNotificationAccessGranted by viewModel.mediaRepository.isNotificationAccessGranted.collectAsState()
-    val activePlayerPackage by viewModel.mediaRepository.activePlayerPackage.collectAsState()
+    val isNotificationAccessGranted by viewModel.isNotificationAccessGranted.collectAsState()
+    val activePlayerPackage by viewModel.activePlayerPackage.collectAsState()
 
     // Custom dialog to guide notification setup and Spotify linking
     var showPermissionDialog by remember { mutableStateOf(false) }
@@ -321,7 +321,19 @@ fun DeskModeScreen(
                                                 .size(170.dp)
                                                 .clip(RoundedCornerShape(20.dp))
                                                 .background(Color.White.copy(alpha = 0.03f))
-                                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
+                                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                                                .clickable {
+                                                    try {
+                                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                        if (launchIntent != null) {
+                                                            context.startActivity(launchIntent)
+                                                        } else {
+                                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        e.printStackTrace()
+                                                    }
+                                                },
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (bitmap != null) {
@@ -335,17 +347,14 @@ fun DeskModeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
-                                                        .background(
-                                                            Brush.linearGradient(
-                                                                listOf(
-                                                                    Color(0xFFE53935),
-                                                                    Color(0xFFF57C00)
-                                                                )
-                                                            )
-                                                        ),
+                                                        .background(Color(0xFF1DB954)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.White, modifier = Modifier.size(54.dp))
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.Black, modifier = Modifier.size(54.dp))
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text("LAUNCH SPOTIFY", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                    }
                                                 }
                                             }
                                         }
@@ -775,7 +784,19 @@ fun DeskModeScreen(
                                                             modifier = Modifier
                                                                 .size(54.dp)
                                                                 .clip(RoundedCornerShape(10.dp))
-                                                                .background(Color.White.copy(alpha = 0.03f)),
+                                                                .background(Color.White.copy(alpha = 0.03f))
+                                                                .clickable {
+                                                                    try {
+                                                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                                        if (launchIntent != null) {
+                                                                            context.startActivity(launchIntent)
+                                                                        } else {
+                                                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                                        }
+                                                                    } catch (e: Exception) {
+                                                                        e.printStackTrace()
+                                                                    }
+                                                                },
                                                             contentAlignment = Alignment.Center
                                                         ) {
                                                             if (bitmap != null) {
@@ -789,17 +810,10 @@ fun DeskModeScreen(
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .fillMaxSize()
-                                                                        .background(
-                                                                            Brush.linearGradient(
-                                                                                listOf(
-                                                                                    MaterialTheme.colorScheme.primary,
-                                                                                    MaterialTheme.colorScheme.secondary
-                                                                                )
-                                                                            )
-                                                                        ),
+                                                                        .background(Color(0xFF1DB954)),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {
-                                                                    Text(currentTrack.title.take(1), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                                                    Text(currentTrack.title.take(1), color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                                                 }
                                                             }
                                                         }
