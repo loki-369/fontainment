@@ -1,6 +1,7 @@
 package com.fontainment.app.presentation.desk
 
 import android.widget.Toast
+import com.fontainment.app.presentation.common.SpotifyWidgetHostView
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -307,176 +308,175 @@ fun DeskModeScreen(
                                     }
                                 }
                                 1 -> {
-                                    // PAGE 1: Minimalist Media Player
-                                    Row(
+                                    // PAGE 1: Spotify AppWidget Host (Falls back to custom player if Spotify not installed)
+                                    SpotifyWidgetHostView(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .padding(horizontal = 24.dp),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .padding(horizontal = 24.dp)
                                     ) {
-                                        // Left Side Album Art Cover Poster
-                                        Box(
+                                        Row(
                                             modifier = Modifier
-                                                .size(170.dp)
-                                                .clip(RoundedCornerShape(20.dp))
-                                                .background(Color.White.copy(alpha = 0.03f))
-                                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-                                                .clickable {
-                                                    try {
-                                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                                                        if (launchIntent != null) {
-                                                            context.startActivity(launchIntent)
-                                                        } else {
-                                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                .fillMaxSize(),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Left Side Album Art Cover Poster
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(170.dp)
+                                                    .clip(RoundedCornerShape(20.dp))
+                                                    .background(Color.White.copy(alpha = 0.03f))
+                                                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                                                    .clickable {
+                                                        try {
+                                                            val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                            if (launchIntent != null) {
+                                                                context.startActivity(launchIntent)
+                                                            } else {
+                                                                Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            e.printStackTrace()
                                                         }
-                                                    } catch (e: Exception) {
-                                                        e.printStackTrace()
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (bitmap != null) {
-                                                Image(
-                                                    bitmap = bitmap.asImageBitmap(),
-                                                    contentDescription = "Cover Art",
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            } else {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .background(Color(0xFF1DB954)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                        Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.Black, modifier = Modifier.size(54.dp))
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        Text("LAUNCH SPOTIFY", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.width(36.dp))
-
-                                        // Right Side Metadata & Controls
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight(),
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text(
-                                                text = currentTrack.title,
-                                                color = Color.White,
-                                                fontSize = 22.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = currentTrack.artist.uppercase(),
-                                                color = Color.Gray,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 1.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            // Clean seek bar
-                                            val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
-                                            Column {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(4.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color.White.copy(alpha = 0.1f))
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth(progress)
-                                                            .fillMaxHeight()
-                                                            .clip(CircleShape)
-                                                            .background(Color.Red)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    val elapsed = SimpleDateFormat("m:ss", Locale.getDefault()).format(Date(currentTrack.progressMs))
-                                                    val remaining = "-" + SimpleDateFormat("m:ss", Locale.getDefault()).format(Date(currentTrack.durationMs - currentTrack.progressMs))
-                                                    Text(elapsed, color = Color.DarkGray, fontSize = 10.sp)
-                                                    Text(remaining, color = Color.DarkGray, fontSize = 10.sp)
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(12.dp))
-
-                                            // Premium buttons controls
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                                    },
+                                                contentAlignment = Alignment.Center
                                             ) {
-                                                IconButton(onClick = { showPermissionDialog = true }) {
-                                                    Icon(
-                                                        imageVector = if (!isNotificationAccessGranted) Icons.Default.Info else Icons.Default.VolumeUp,
-                                                        contentDescription = "Access check",
-                                                        tint = if (!isNotificationAccessGranted) Color.Red else Color.Gray,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    IconButton(onClick = { viewModel.skipPrevious() }) {
-                                                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = Color.White, modifier = Modifier.size(30.dp))
-                                                    }
-                                                    IconButton(
-                                                        onClick = { viewModel.playPauseMusic() },
-                                                        modifier = Modifier
-                                                            .size(46.dp)
-                                                            .clip(CircleShape)
-                                                            .background(Color.White.copy(alpha = 0.08f))
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                                            contentDescription = "PlayPause",
-                                                            tint = Color.White,
-                                                            modifier = Modifier.size(28.dp)
-                                                        )
-                                                    }
-                                                    IconButton(onClick = { viewModel.skipNext() }) {
-                                                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(30.dp))
-                                                    }
-                                                }
-
-                                                // Notification link status label
-                                                if (!isNotificationAccessGranted) {
-                                                    Text(
-                                                        text = "LINK",
-                                                        color = Color.Red,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.clickable { showPermissionDialog = true }
+                                                if (bitmap != null) {
+                                                    Image(
+                                                        bitmap = bitmap.asImageBitmap(),
+                                                        contentDescription = "Cover Art",
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
                                                     )
                                                 } else {
-                                                    Text(
-                                                        text = activePlayerPackage?.substringAfterLast(".")?.uppercase() ?: "REAL",
-                                                        color = Color.Gray,
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Bold
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color(0xFF1DB954)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                            Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.Black, modifier = Modifier.size(54.dp))
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            Text("LAUNCH SPOTIFY", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.width(36.dp))
+
+                                            // Right Side Metadata & Controls
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight(),
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    text = currentTrack.title,
+                                                    color = Color.White,
+                                                    fontSize = 22.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = currentTrack.artist.uppercase(),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 1.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(14.dp))
+
+                                                // Seek slider and track times
+                                                Column(modifier = Modifier.fillMaxWidth()) {
+                                                    val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
+                                                    Slider(
+                                                        value = progress,
+                                                        onValueChange = { viewModel.seekTo((it * currentTrack.durationMs).toLong()) },
+                                                        colors = SliderDefaults.colors(
+                                                            thumbColor = Color.White,
+                                                            activeTrackColor = Color.White.copy(alpha = 0.6f),
+                                                            inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                                                        ),
+                                                        modifier = Modifier.height(18.dp)
                                                     )
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        val elapsedSec = currentTrack.progressMs / 1000
+                                                        val elapsed = String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
+                                                        val remaining = "-" + SimpleDateFormat("m:ss", Locale.getDefault()).format(Date(currentTrack.durationMs - currentTrack.progressMs))
+                                                        Text(elapsed, color = Color.DarkGray, fontSize = 10.sp)
+                                                        Text(remaining, color = Color.DarkGray, fontSize = 10.sp)
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.height(12.dp))
+
+                                                // Premium buttons controls
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    IconButton(onClick = { showPermissionDialog = true }) {
+                                                        Icon(
+                                                            imageVector = if (!isNotificationAccessGranted) Icons.Default.Info else Icons.Default.VolumeUp,
+                                                            contentDescription = "Access check",
+                                                            tint = if (!isNotificationAccessGranted) Color.Red else Color.Gray,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
+
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        IconButton(onClick = { viewModel.skipPrevious() }) {
+                                                            Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = Color.White, modifier = Modifier.size(30.dp))
+                                                        }
+                                                        IconButton(
+                                                            onClick = { viewModel.playPauseMusic() },
+                                                            modifier = Modifier
+                                                                .size(46.dp)
+                                                                .clip(CircleShape)
+                                                                .background(Color.White.copy(alpha = 0.08f))
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                                contentDescription = "PlayPause",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(28.dp)
+                                                            )
+                                                        }
+                                                        IconButton(onClick = { viewModel.skipNext() }) {
+                                                            Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(30.dp))
+                                                        }
+                                                    }
+
+                                                    // Notification link status label
+                                                    if (!isNotificationAccessGranted) {
+                                                        Text(
+                                                            text = "LINK",
+                                                            color = Color.Red,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.clickable { showPermissionDialog = true }
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = activePlayerPackage?.substringAfterLast(".")?.uppercase() ?: "REAL",
+                                                            color = Color.Gray,
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -766,80 +766,84 @@ fun DeskModeScreen(
                                     Crossfade(targetState = rightCard1Index) { index ->
                                         when (index) {
                                             0 -> {
-                                                Column(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    verticalArrangement = Arrangement.SpaceBetween
+                                                SpotifyWidgetHostView(
+                                                    modifier = Modifier.fillMaxSize()
                                                 ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
+                                                    Column(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        verticalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        Text("NOW PLAYING", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                                        Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
-                                                    }
-                                                    
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(54.dp)
-                                                                .clip(RoundedCornerShape(10.dp))
-                                                                .background(Color.White.copy(alpha = 0.03f))
-                                                                .clickable {
-                                                                    try {
-                                                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                                                                        if (launchIntent != null) {
-                                                                            context.startActivity(launchIntent)
-                                                                        } else {
-                                                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
-                                                                        }
-                                                                    } catch (e: Exception) {
-                                                                        e.printStackTrace()
-                                                                    }
-                                                                },
-                                                            contentAlignment = Alignment.Center
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
                                                         ) {
-                                                            if (bitmap != null) {
-                                                                Image(
-                                                                    bitmap = bitmap.asImageBitmap(),
-                                                                    contentDescription = "Cover",
-                                                                    contentScale = ContentScale.Crop,
-                                                                    modifier = Modifier.fillMaxSize()
-                                                                )
-                                                            } else {
-                                                                Box(
-                                                                    modifier = Modifier
-                                                                        .fillMaxSize()
-                                                                        .background(Color(0xFF1DB954)),
-                                                                    contentAlignment = Alignment.Center
-                                                                ) {
-                                                                    Text(currentTrack.title.take(1), color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                                            Text("SPOTIFY PLAYER", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                            Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
+                                                        }
+                                                        
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(54.dp)
+                                                                    .clip(RoundedCornerShape(10.dp))
+                                                                    .background(Color.White.copy(alpha = 0.03f))
+                                                                    .clickable {
+                                                                        try {
+                                                                            val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                                            if (launchIntent != null) {
+                                                                                context.startActivity(launchIntent)
+                                                                            } else {
+                                                                                Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                                            }
+                                                                        } catch (e: Exception) {
+                                                                            e.printStackTrace()
+                                                                        }
+                                                                    },
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                if (bitmap != null) {
+                                                                    Image(
+                                                                        bitmap = bitmap.asImageBitmap(),
+                                                                        contentDescription = "Cover",
+                                                                        contentScale = ContentScale.Crop,
+                                                                        modifier = Modifier.fillMaxSize()
+                                                                    )
+                                                                } else {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .fillMaxSize()
+                                                                            .background(Color(0xFF1DB954)),
+                                                                        contentAlignment = Alignment.Center
+                                                                    ) {
+                                                                        Text(currentTrack.title.take(1), color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                                                    }
                                                                 }
                                                             }
+                                                            Spacer(modifier = Modifier.width(12.dp))
+                                                            Column(modifier = Modifier.weight(1f)) {
+                                                                Text(currentTrack.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                                Text(currentTrack.artist, color = Color.Gray, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                            }
                                                         }
-                                                        Spacer(modifier = Modifier.width(12.dp))
-                                                        Column(modifier = Modifier.weight(1f)) {
-                                                            Text(currentTrack.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                            Text(currentTrack.artist, color = Color.Gray, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                        }
-                                                    }
 
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
-                                                        Box(modifier = Modifier.weight(1f).height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
-                                                            Box(modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
+                                                            Box(modifier = Modifier.weight(1f).height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                                                Box(modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                                                            }
+                                                            Spacer(modifier = Modifier.width(10.dp))
+                                                            Icon(
+                                                                imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                                contentDescription = "Play",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(20.dp).clickable { viewModel.playPauseMusic() }
+                                                            )
                                                         }
-                                                        Spacer(modifier = Modifier.width(10.dp))
-                                                        Icon(
-                                                            imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                                            contentDescription = "Play",
-                                                            tint = Color.White,
-                                                            modifier = Modifier.size(20.dp).clickable { viewModel.playPauseMusic() }
-                                                        )
                                                     }
                                                 }
                                             }
