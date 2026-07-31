@@ -139,6 +139,7 @@ class DeskViewModel @Inject constructor(
 
     fun skipNext() = mediaRepository.skipToNext()
     fun skipPrevious() = mediaRepository.skipToPrevious()
+    fun seekTo(positionMs: Long) = mediaRepository.seekTo(positionMs)
 
     override fun onCleared() {
         try {
