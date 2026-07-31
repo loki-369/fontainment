@@ -627,6 +627,18 @@ fun DriveModeScreen(
                                         .size(42.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(Color.White.copy(alpha = 0.05f))
+                                        .clickable {
+                                            try {
+                                                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                if (launchIntent != null) {
+                                                    context.startActivity(launchIntent)
+                                                } else {
+                                                    Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
                                 ) {
                                     if (bitmap != null) {
                                         Image(
@@ -636,7 +648,12 @@ fun DriveModeScreen(
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else {
-                                        Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Center).size(20.dp))
+                                        Box(
+                                            modifier = Modifier.fillMaxSize().background(Color(0xFF1DB954)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -823,13 +840,35 @@ fun DriveModeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.MusicNote,
-                                    contentDescription = "Spotify Remote Mode",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable {
+                                    try {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                        if (launchIntent != null) {
+                                            context.startActivity(launchIntent)
+                                        } else {
+                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1DB954)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.MusicNote,
+                                        contentDescription = "Spotify Remote Mode",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 if (!isNotificationAccessGranted) {
                                     Text(
@@ -870,14 +909,19 @@ fun DriveModeScreen(
                                 modifier = Modifier
                                     .size(80.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.secondary
-                                            )
-                                        )
-                                    ),
+                                    .background(Color.White.copy(alpha = 0.03f))
+                                    .clickable {
+                                        try {
+                                            val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                            if (launchIntent != null) {
+                                                context.startActivity(launchIntent)
+                                            } else {
+                                                Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (bitmap != null) {
@@ -888,12 +932,19 @@ fun DriveModeScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
-                                    Text(
-                                        text = currentTrack.title.take(1),
-                                        color = Color.White,
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0xFF1DB954)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = currentTrack.title.take(1),
+                                            color = Color.Black,
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
 
