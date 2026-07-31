@@ -609,77 +609,25 @@ fun DriveModeScreen(
                             }
                         }
 
-                        // Floating music player (bottom right)
-                        Card(
+                        // Floating music player widget overlay (bottom right)
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(16.dp)
-                                .width(230.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.85f)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                                .width(320.dp)
                         ) {
                             SpotifyWidgetHostView(
+                                title = currentTrack.title,
+                                artist = currentTrack.artist,
+                                isPlaying = currentTrack.isPlaying,
+                                albumArtBitmap = bitmap,
+                                onPlayPauseClick = { viewModel.playPauseMusic() },
+                                onPreviousClick = { viewModel.skipPrevious() },
+                                onNextClick = { viewModel.skipNext() },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(72.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color.White.copy(alpha = 0.05f))
-                                            .clickable {
-                                                try {
-                                                    val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                                                    if (launchIntent != null) {
-                                                        context.startActivity(launchIntent)
-                                                    } else {
-                                                        Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                } catch (e: Exception) {
-                                                    e.printStackTrace()
-                                                }
-                                            }
-                                    ) {
-                                        if (bitmap != null) {
-                                            Image(
-                                                bitmap = bitmap.asImageBitmap(),
-                                                contentDescription = "Cover",
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize().background(Color(0xFF1DB954)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(Icons.Default.MusicNote, contentDescription = "Music", tint = Color.Black, modifier = Modifier.size(16.dp))
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(currentTrack.title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(currentTrack.artist, color = Color.Gray, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    IconButton(
-                                        onClick = { viewModel.playPauseMusic() },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                            contentDescription = "Play",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
+                                    .height(84.dp)
+                            )
                         }
                     }
                 }
@@ -833,262 +781,24 @@ fun DriveModeScreen(
                             )
                             .blur(40.dp)
                     )
-                    SpotifyWidgetHostView(
+                    Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Fallback custom media player
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Header info and favorite toggle
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable {
-                                        try {
-                                            val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                                            if (launchIntent != null) {
-                                                context.startActivity(launchIntent)
-                                            } else {
-                                                Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(18.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF1DB954)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.MusicNote,
-                                            contentDescription = "Spotify Remote Mode",
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    if (!isNotificationAccessGranted) {
-                                        Text(
-                                            text = "LINK SYSTEM PLAYER",
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.sp,
-                                            modifier = Modifier.clickable {
-                                                showPermissionDialog = true
-                                            }
-                                        )
-                                    } else {
-                                        val activePackageLabel = activePlayerPackage?.substringAfterLast(".")?.uppercase() ?: "SYSTEM"
-                                        Text("$activePackageLabel REMOTE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                    }
-                                }
-                                IconButton(onClick = { showDevicesDialog = true }) {
-                                    Icon(Icons.Default.Devices, contentDescription = "Playback device output picker", tint = Color.Gray, modifier = Modifier.size(18.dp))
-                                }
-                                Icon(
-                                    imageVector = if (currentTrack.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    contentDescription = "Fav song",
-                                    tint = if (currentTrack.isFavorite) Color.Red else Color.Gray,
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clickable { viewModel.toggleFavorite() }
-                                )
-                            }
-
-                            // Album Art representation and Song details
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(80.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color.White.copy(alpha = 0.03f))
-                                        .clickable {
-                                            try {
-                                                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
-                                                if (launchIntent != null) {
-                                                    context.startActivity(launchIntent)
-                                                } else {
-                                                    Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
-                                                }
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (bitmap != null) {
-                                        Image(
-                                            bitmap = bitmap.asImageBitmap(),
-                                            contentDescription = "Album Art",
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(Color(0xFF1DB954)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = currentTrack.title.take(1),
-                                                color = Color.Black,
-                                                fontSize = 32.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(14.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = currentTrack.title,
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = currentTrack.artist,
-                                        color = Color.Gray,
-                                        fontSize = 13.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = currentTrack.album,
-                                        color = Color.DarkGray,
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            // Bouncing EQ Canvas Visualizer
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(22.dp)
-                                    .padding(horizontal = 8.dp)
-                            ) {
-                                val barCount = equalizerBands.size
-                                val barWidth = (size.width / barCount) - 6f
-                                for (idx in 0 until barCount) {
-                                    val value = equalizerBands[idx]
-                                    val barHeight = size.height * value
-                                    drawRect(
-                                        color = primaryColor.copy(alpha = 0.7f),
-                                        topLeft = Offset(idx * (barWidth + 6f), size.height - barHeight),
-                                        size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
-                                    )
-                                }
-                            }
-
-                            // Progress seek slider
-                            Column {
-                                val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
-                                Slider(
-                                    value = progress,
-                                    onValueChange = { viewModel.seekTo((it * currentTrack.durationMs).toLong()) },
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = MaterialTheme.colorScheme.primary,
-                                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                                        inactiveTrackColor = Color.Gray.copy(alpha = 0.2f)
-                                    ),
-                                    modifier = Modifier.height(18.dp)
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    val elapsedSec = currentTrack.progressMs / 1000
-                                    val elapsed = String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
-                                    val durationSec = currentTrack.durationMs / 1000
-                                    val duration = String.format("%d:%02d", durationSec / 60, durationSec % 60)
-                                    Text(elapsed, color = Color.Gray, fontSize = 10.sp)
-                                    Text(duration, color = Color.Gray, fontSize = 10.sp)
-                                }
-                            }
-
-                            // Playback Control Action buttons row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(onClick = { viewModel.toggleShuffle() }) {
-                                    Icon(Icons.Default.Shuffle, "Shuffle", tint = if (currentTrack.shuffleActive) MaterialTheme.colorScheme.primary else Color.Gray, modifier = Modifier.size(18.dp))
-                                }
-                                IconButton(onClick = { viewModel.skipPrevious() }) {
-                                    Icon(Icons.Default.SkipPrevious, "Previous", tint = Color.White, modifier = Modifier.size(24.dp))
-                                }
-                                // Large Circular Play/Pause button
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .clickable { viewModel.playPauseMusic() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = "PlayPause toggler",
-                                        tint = Color.Black,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                IconButton(onClick = { viewModel.skipNext() }) {
-                                    Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(24.dp))
-                                }
-                                IconButton(onClick = { viewModel.toggleRepeat() }) {
-                                    Icon(Icons.Default.Repeat, "Repeat", tint = if (currentTrack.repeatMode > 0) MaterialTheme.colorScheme.primary else Color.Gray, modifier = Modifier.size(18.dp))
-                                }
-                            }
-
-                            // Stream Music Volume synchronization slider
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            ) {
-                                Icon(Icons.Default.VolumeDown, "Decrease Vol", tint = Color.Gray, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Slider(
-                                    value = musicVolume,
-                                    onValueChange = { viewModel.setVolume(it) },
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = Color.White,
-                                        activeTrackColor = Color.White.copy(alpha = 0.6f),
-                                        inactiveTrackColor = Color.White.copy(alpha = 0.12f)
-                                    ),
-                                    modifier = Modifier.weight(1f).height(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(Icons.AutoMirrored.Filled.VolumeUp, "Increase Vol", tint = Color.Gray, modifier = Modifier.size(14.dp))
-                            }
-                        }
+                        SpotifyWidgetHostView(
+                            title = currentTrack.title,
+                            artist = currentTrack.artist,
+                            isPlaying = currentTrack.isPlaying,
+                            albumArtBitmap = bitmap,
+                            onPlayPauseClick = { viewModel.playPauseMusic() },
+                            onPreviousClick = { viewModel.skipPrevious() },
+                            onNextClick = { viewModel.skipNext() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(84.dp)
+                        )
                     }
                     }
                 }
