@@ -61,7 +61,18 @@ class MediaRepositoryImpl @Inject constructor(
     private var currentTrackIndex = 0
     private var mediaPlayer: MediaPlayer? = null
 
-    private val _currentTrack = MutableStateFlow(onlineTracks[0])
+    private val _currentTrack = MutableStateFlow(
+        SpotifyTrack(
+            title = "Not Playing",
+            artist = "Tap to connect Spotify",
+            album = "",
+            durationMs = 0L,
+            progressMs = 0L,
+            isPlaying = false,
+            albumArtUri = null,
+            isFavorite = false
+        )
+    )
     override val currentTrack: StateFlow<SpotifyTrack> = _currentTrack.asStateFlow()
 
     private val _volume = MutableStateFlow(0.7f)
@@ -203,36 +214,29 @@ class MediaRepositoryImpl @Inject constructor(
         }
     }
 
+    private fun sendMediaButtonToSpotify(keyCode: Int) {
+        try {
+            val intentDown = android.content.Intent(android.content.Intent.ACTION_MEDIA_BUTTON).apply {
+                `package` = "com.spotify.music"
+                putExtra(android.content.Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode))
+            }
+            context.sendOrderedBroadcast(intentDown, null)
+            val intentUp = android.content.Intent(android.content.Intent.ACTION_MEDIA_BUTTON).apply {
+                `package` = "com.spotify.music"
+                putExtra(android.content.Intent.EXTRA_KEY_EVENT, android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, keyCode))
+            }
+            context.sendOrderedBroadcast(intentUp, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override fun play() {
         val controller = activeController
         if (controller != null) {
             controller.transportControls.play()
         } else {
-            // Play built-in internet audio stream via MediaPlayer
-            if (mediaPlayer == null) {
-                try {
-                    mediaPlayer = MediaPlayer().apply {
-                        setAudioStreamType(AudioManager.STREAM_MUSIC)
-                        setDataSource(streamUrls[currentTrackIndex])
-                        setOnPreparedListener { mp ->
-                            mp.start()
-                            _currentTrack.value = _currentTrack.value.copy(
-                                isPlaying = true,
-                                durationMs = mp.duration.toLong()
-                            )
-                        }
-                        setOnCompletionListener {
-                            skipToNext()
-                        }
-                        prepareAsync()
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            } else {
-                mediaPlayer?.start()
-                _currentTrack.value = _currentTrack.value.copy(isPlaying = true)
-            }
+            sendMediaButtonToSpotify(android.view.KeyEvent.KEYCODE_MEDIA_PLAY)
         }
     }
 
@@ -241,8 +245,7 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.pause()
         } else {
-            mediaPlayer?.pause()
-            _currentTrack.value = _currentTrack.value.copy(isPlaying = false)
+            sendMediaButtonToSpotify(android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
         }
     }
 
@@ -251,11 +254,7 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.skipToNext()
         } else {
-            mediaPlayer?.release()
-            mediaPlayer = null
-            currentTrackIndex = (currentTrackIndex + 1) % streamUrls.size
-            _currentTrack.value = onlineTracks[currentTrackIndex]
-            play()
+            sendMediaButtonToSpotify(android.view.KeyEvent.KEYCODE_MEDIA_NEXT)
         }
     }
 
@@ -264,11 +263,7 @@ class MediaRepositoryImpl @Inject constructor(
         if (controller != null) {
             controller.transportControls.skipToPrevious()
         } else {
-            mediaPlayer?.release()
-            mediaPlayer = null
-            currentTrackIndex = if (currentTrackIndex - 1 < 0) streamUrls.size - 1 else currentTrackIndex - 1
-            _currentTrack.value = onlineTracks[currentTrackIndex]
-            play()
+            sendMediaButtonToSpotify(android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         }
     }
 
