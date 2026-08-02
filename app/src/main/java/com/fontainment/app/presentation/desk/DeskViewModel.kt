@@ -141,6 +141,38 @@ class DeskViewModel @Inject constructor(
     fun skipPrevious() = mediaRepository.skipToPrevious()
     fun seekTo(positionMs: Long) = mediaRepository.seekTo(positionMs)
 
+    private val sharedPrefs = context.getSharedPreferences("desk_ui_prefs", Context.MODE_PRIVATE)
+
+    private val _uiMode = MutableStateFlow(
+        UiMode.valueOf(sharedPrefs.getString("ui_mode", UiMode.MINIMAL.name) ?: UiMode.MINIMAL.name)
+    )
+    val uiMode: StateFlow<UiMode> = _uiMode.asStateFlow()
+
+    private val _clockTheme = MutableStateFlow(
+        ClockTheme.valueOf(sharedPrefs.getString("clock_theme", ClockTheme.ORANGE_STANDBY.name) ?: ClockTheme.ORANGE_STANDBY.name)
+    )
+    val clockTheme: StateFlow<ClockTheme> = _clockTheme.asStateFlow()
+
+    private val _backgroundStyle = MutableStateFlow(
+        BackgroundStyle.valueOf(sharedPrefs.getString("background_style", BackgroundStyle.DYNAMIC_BLUR.name) ?: BackgroundStyle.DYNAMIC_BLUR.name)
+    )
+    val backgroundStyle: StateFlow<BackgroundStyle> = _backgroundStyle.asStateFlow()
+
+    fun setUiMode(mode: UiMode) {
+        _uiMode.value = mode
+        sharedPrefs.edit().putString("ui_mode", mode.name).apply()
+    }
+
+    fun setClockTheme(theme: ClockTheme) {
+        _clockTheme.value = theme
+        sharedPrefs.edit().putString("clock_theme", theme.name).apply()
+    }
+
+    fun setBackgroundStyle(style: BackgroundStyle) {
+        _backgroundStyle.value = style
+        sharedPrefs.edit().putString("background_style", style.name).apply()
+    }
+
     override fun onCleared() {
         try {
             context.unregisterReceiver(batteryReceiver)
@@ -150,4 +182,16 @@ class DeskViewModel @Inject constructor(
         tickerJob?.cancel()
         super.onCleared()
     }
+}
+
+enum class UiMode {
+    MINIMAL, CUSTOMISED, CLASSIC
+}
+
+enum class ClockTheme {
+    ORANGE_STANDBY, MINIMALIST_WHITE, RETRO_GREEN, VECTOR_ANALOGUE
+}
+
+enum class BackgroundStyle {
+    DYNAMIC_BLUR, PITCH_BLACK, CHARCOAL_GREY
 }

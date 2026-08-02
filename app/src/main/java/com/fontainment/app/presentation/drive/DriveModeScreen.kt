@@ -618,12 +618,13 @@ fun DriveModeScreen(
                         ) {
                             SpotifyWidgetHostView(
                                 title = currentTrack.title,
-                                artist = currentTrack.artist,
+                                artist = if (!isNotificationAccessGranted) "Tap to link Spotify" else currentTrack.artist,
                                 isPlaying = currentTrack.isPlaying,
                                 albumArtBitmap = bitmap,
                                 onPlayPauseClick = { viewModel.playPauseMusic() },
                                 onPreviousClick = { viewModel.skipPrevious() },
                                 onNextClick = { viewModel.skipNext() },
+                                onWidgetClick = { showPermissionDialog = true },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(84.dp)
@@ -789,12 +790,13 @@ fun DriveModeScreen(
                     ) {
                         SpotifyWidgetHostView(
                             title = currentTrack.title,
-                            artist = currentTrack.artist,
+                            artist = if (!isNotificationAccessGranted) "Tap to link Spotify" else currentTrack.artist,
                             isPlaying = currentTrack.isPlaying,
                             albumArtBitmap = bitmap,
                             onPlayPauseClick = { viewModel.playPauseMusic() },
                             onPreviousClick = { viewModel.skipPrevious() },
                             onNextClick = { viewModel.skipNext() },
+                            onWidgetClick = { showPermissionDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(84.dp)

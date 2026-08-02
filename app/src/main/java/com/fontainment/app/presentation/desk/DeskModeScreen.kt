@@ -13,7 +13,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +53,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeMute
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -135,11 +137,15 @@ fun DeskModeScreen(
         }
     }
 
-    // View layout configurations: 0: Split Grid (Hectic), 1: Minimal Apple Standby (Clean, default!)
-    var isMinimalMode by remember { mutableStateOf(true) }
-    var minimalPageIndex by remember { mutableStateOf(0) } // 0: Big Clock, 1: Media Player, 2: Map HUD
+    // View layout configurations collected from ViewModel
+    val uiMode by viewModel.uiMode.collectAsState()
+    val clockTheme by viewModel.clockTheme.collectAsState()
+    val backgroundStyle by viewModel.backgroundStyle.collectAsState()
 
-    // Smooth sweeping clock rendering frame ticker (60 FPS)
+    var minimalPageIndex by remember { mutableStateOf(0) } // 0: Clock, 1: Media Player, 2: Map HUD
+    var showSettingsDrawer by remember { mutableStateOf(false) }
+
+    // Smooth clock rendering frame ticker
     var frameTime by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -160,7 +166,6 @@ fun DeskModeScreen(
     // Interactive StandBy layouts cycling for the Grid panel
     var leftPanelLayoutIndex by remember { mutableStateOf(0) }
     var rightCard1Index by remember { mutableStateOf(0) }
-    var rightCard2Index by remember { mutableStateOf(0) }
 
     // Shifting ambient background glow animation
     val infiniteTransition = rememberInfiniteTransition()
@@ -195,14 +200,40 @@ fun DeskModeScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Slowly shifting background glow (Only visible or bright in media player and grid modes)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(ambientBrush)
-                .blur(90.dp)
-                .graphicsLayer(alpha = if (isMinimalMode && minimalPageIndex == 0) 0.15f else 0.45f)
-        )
+        // Dynamic Backdrop Rendering
+        when (backgroundStyle) {
+            BackgroundStyle.DYNAMIC_BLUR -> {
+                if (uiMode == UiMode.MINIMAL && minimalPageIndex == 1 && bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(80.dp)
+                            .graphicsLayer(alpha = 0.45f)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(ambientBrush)
+                            .blur(90.dp)
+                            .graphicsLayer(alpha = if (uiMode == UiMode.MINIMAL && minimalPageIndex == 0) 0.15f else 0.45f)
+                    )
+                }
+            }
+            BackgroundStyle.CHARCOAL_GREY -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF16171A))
+                )
+            }
+            BackgroundStyle.PITCH_BLACK -> {
+                // OLED battery saving absolute black
+            }
+        }
 
         // Screen overlay content
         Box(
@@ -231,7 +262,7 @@ fun DeskModeScreen(
                 }
 
                 // Page Indicator Dots (Only in Minimal Mode)
-                if (isMinimalMode) {
+                if (uiMode == UiMode.MINIMAL) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -248,17 +279,17 @@ fun DeskModeScreen(
                     }
                 }
 
-                // Layout Toggler
+                // Settings Cog Customization Dialog Trigger
                 IconButton(
-                    onClick = { isMinimalMode = !isMinimalMode },
+                    onClick = { showSettingsDrawer = true },
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.05f))
                         .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
                 ) {
                     Icon(
-                        imageVector = if (isMinimalMode) Icons.Default.GridView else Icons.Default.Fullscreen,
-                        contentDescription = "Toggle Grid",
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Customise layout",
                         tint = Color.White
                     )
                 }
@@ -266,178 +297,275 @@ fun DeskModeScreen(
 
             // CENTRAL CROSSFADE CONTAINER
             Crossfade(
-                targetState = isMinimalMode,
+                targetState = uiMode,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 48.dp, bottom = 12.dp)
-            ) { minimal ->
-                if (minimal) {
-                    // LAYOUT 1: APPLE STANDBY INSPIRED MINIMAL MODE
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable {
-                                // Tap left/right edges to cycle pages easily
-                                minimalPageIndex = (minimalPageIndex + 1) % 3
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Crossfade(targetState = minimalPageIndex) { page ->
-                            when (page) {
-                                0 -> {
-                                    // PAGE 0: Apple Standby Huge Orange Clock
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(
-                                            text = timeString,
-                                            fontSize = 145.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFF4500), // Rich glowing orange-red
-                                            lineHeight = 145.sp,
-                                            letterSpacing = (-4).sp
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = dateString.uppercase(),
-                                            color = Color.Gray,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 2.sp
-                                        )
+            ) { mode ->
+                when (mode) {
+                    UiMode.MINIMAL -> {
+                        // LAYOUT 1: APPLE STANDBY INSPIRED MINIMAL MODE
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable {
+                                    minimalPageIndex = (minimalPageIndex + 1) % 3
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Crossfade(targetState = minimalPageIndex) { page ->
+                                when (page) {
+                                    0 -> {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            DeskClock(
+                                                hour = hour,
+                                                minute = minute,
+                                                second = second,
+                                                clockTheme = clockTheme
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = if (clockTheme == ClockTheme.RETRO_GREEN) dateString.lowercase() else dateString.uppercase(),
+                                                color = if (clockTheme == ClockTheme.RETRO_GREEN) Color(0xFF39FF14) else Color.LightGray,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 2.sp
+                                            )
+                                        }
                                     }
-                                }
-                                1 -> {
-                                    // PAGE 1: Spotify AppWidget replica
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 24.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        SpotifyWidgetHostView(
-                                            title = currentTrack.title,
-                                            artist = currentTrack.artist,
-                                            isPlaying = currentTrack.isPlaying,
-                                            albumArtBitmap = bitmap,
-                                            onPlayPauseClick = { viewModel.playPauseMusic() },
-                                            onPreviousClick = { viewModel.skipPrevious() },
-                                            onNextClick = { viewModel.skipNext() },
+                                    1 -> {
+                                        Row(
                                             modifier = Modifier
-                                                .fillMaxWidth(0.85f)
-                                                .height(84.dp)
-                                        )
-                                    }
-                                }
-                                2 -> {
-                                    // PAGE 2: World Map / Live Navigation HUD
-                                    Box(modifier = Modifier.fillMaxSize()) {
-                                        if (hasActiveRoute) {
-                                            // Navigation HUD Active
-                                            Column(
+                                                .fillMaxSize()
+                                                .padding(horizontal = 40.dp, vertical = 20.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(48.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
                                                 modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(24.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
+                                                    .size(200.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(Color.White.copy(alpha = 0.03f))
+                                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                                                    .clickable {
+                                                        try {
+                                                            val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                                            if (launchIntent != null) {
+                                                                context.startActivity(launchIntent)
+                                                            } else {
+                                                                Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            e.printStackTrace()
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(
-                                                    Icons.Default.Navigation,
-                                                    contentDescription = "Nav direction",
-                                                    tint = Color.Red,
-                                                    modifier = Modifier.size(54.dp)
-                                                )
-                                                Spacer(modifier = Modifier.height(12.dp))
-                                                Text(
-                                                    text = currentNavInstruction ?: "Drive to destination",
-                                                    color = Color.White,
-                                                    fontSize = 24.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    textAlign = TextAlign.Center
-                                                )
-                                                Spacer(modifier = Modifier.height(6.dp))
-                                                val distStr = if (distanceToTurnMeters > 1000) {
-                                                    String.format(Locale.getDefault(), "In %.1f km", distanceToTurnMeters / 1000.0)
+                                                if (bitmap != null) {
+                                                    Image(
+                                                        bitmap = bitmap.asImageBitmap(),
+                                                        contentDescription = "Cover Art",
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
                                                 } else {
-                                                    "In $distanceToTurnMeters m"
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color(0xFF1DB954)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.MusicNote,
+                                                            contentDescription = "Music",
+                                                            tint = Color.Black,
+                                                            modifier = Modifier.size(56.dp)
+                                                        )
+                                                    }
                                                 }
-                                                Text(
-                                                    text = "$distStr to $destinationName",
-                                                    color = Color.Gray,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
                                             }
-                                        } else {
-                                            // Dotted World Map Graphic (Red outline matching Image 3)
-                                            Canvas(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .graphicsLayer(alpha = 0.35f)
-                                            ) {
-                                                val worldDots = listOf(
-                                                    Pair(0.1f, 0.2f), Pair(0.15f, 0.2f), Pair(0.2f, 0.2f), Pair(0.25f, 0.25f), Pair(0.3f, 0.28f), Pair(0.35f, 0.3f),
-                                                    Pair(0.12f, 0.25f), Pair(0.18f, 0.28f), Pair(0.22f, 0.3f), Pair(0.28f, 0.32f), Pair(0.32f, 0.35f),
-                                                    Pair(0.15f, 0.3f), Pair(0.2f, 0.33f), Pair(0.25f, 0.36f), Pair(0.28f, 0.4f),
-                                                    Pair(0.18f, 0.38f), Pair(0.22f, 0.42f), Pair(0.26f, 0.46f),
-                                                    Pair(0.42f, 0.12f), Pair(0.45f, 0.15f), Pair(0.48f, 0.16f),
-                                                    Pair(0.32f, 0.55f), Pair(0.35f, 0.58f), Pair(0.37f, 0.62f),
-                                                    Pair(0.34f, 0.65f), Pair(0.36f, 0.7f), Pair(0.38f, 0.73f), Pair(0.4f, 0.76f),
-                                                    Pair(0.38f, 0.8f), Pair(0.39f, 0.84f), Pair(0.4f, 0.88f),
-                                                    Pair(0.5f, 0.48f), Pair(0.52f, 0.52f), Pair(0.54f, 0.55f), Pair(0.56f, 0.58f),
-                                                    Pair(0.52f, 0.62f), Pair(0.53f, 0.66f), Pair(0.55f, 0.7f), Pair(0.57f, 0.74f), Pair(0.58f, 0.78f),
-                                                    Pair(0.48f, 0.25f), Pair(0.5f, 0.28f), Pair(0.52f, 0.26f), Pair(0.54f, 0.3f), Pair(0.56f, 0.32f),
-                                                    Pair(0.50f, 0.34f), Pair(0.53f, 0.36f), Pair(0.56f, 0.38f),
-                                                    Pair(0.58f, 0.42f), Pair(0.62f, 0.4f), Pair(0.65f, 0.38f), Pair(0.68f, 0.35f),
-                                                    Pair(0.60f, 0.46f), Pair(0.64f, 0.44f), Pair(0.68f, 0.42f), Pair(0.72f, 0.4f),
-                                                    Pair(0.76f, 0.38f), Pair(0.8f, 0.36f), Pair(0.84f, 0.34f), Pair(0.88f, 0.32f),
-                                                    Pair(0.66f, 0.48f), Pair(0.70f, 0.46f), Pair(0.74f, 0.44f), Pair(0.78f, 0.42f),
-                                                    Pair(0.82f, 0.4f), Pair(0.86f, 0.38f), Pair(0.9f, 0.36f),
-                                                    Pair(0.70f, 0.52f), Pair(0.72f, 0.54f), Pair(0.71f, 0.57f),
-                                                    Pair(0.78f, 0.48f), Pair(0.82f, 0.46f), Pair(0.86f, 0.45f), Pair(0.9f, 0.44f),
-                                                    Pair(0.80f, 0.52f), Pair(0.84f, 0.5f), Pair(0.88f, 0.49f),
-                                                    Pair(0.84f, 0.58f), Pair(0.87f, 0.6f), Pair(0.9f, 0.62f),
-                                                    Pair(0.86f, 0.72f), Pair(0.89f, 0.7f), Pair(0.92f, 0.71f),
-                                                    Pair(0.88f, 0.76f), Pair(0.91f, 0.75f), Pair(0.94f, 0.76f),
-                                                    Pair(0.90f, 0.8f), Pair(0.93f, 0.81f)
-                                                )
 
-                                                worldDots.forEach { dot ->
-                                                    drawCircle(
-                                                        color = Color.Red,
-                                                        radius = 3.dp.toPx(),
-                                                        center = Offset(dot.first * size.width, dot.second * size.height)
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                                        contentDescription = "Volume status",
+                                                        tint = Color.White.copy(alpha = 0.5f),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    if (!isNotificationAccessGranted) {
+                                                        Text(
+                                                            text = "TAP TO LINK SPOTIFY",
+                                                            color = Color(0xFF1DB954),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            letterSpacing = 1.sp,
+                                                            modifier = Modifier.clickable { showPermissionDialog = true }
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = activePlayerPackage?.substringAfterLast(".")?.uppercase() ?: "SPOTIFY",
+                                                            color = Color.White.copy(alpha = 0.4f),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            letterSpacing = 1.sp
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.height(12.dp))
+
+                                                Column {
+                                                    Text(
+                                                        text = if (currentTrack.title.isBlank() || currentTrack.title == "Not Playing") "Not Playing" else currentTrack.title,
+                                                        color = Color.White,
+                                                        fontSize = 24.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = if (currentTrack.artist.isBlank() || currentTrack.artist == "Tap to connect Spotify") "Launch Spotify to play music" else currentTrack.artist,
+                                                        color = Color.White.copy(alpha = 0.65f),
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Normal,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
 
-                                                // Draw a pulsing red city indicator for New Delhi
-                                                drawCircle(
-                                                    color = Color.Red,
-                                                    radius = 8.dp.toPx(),
-                                                    center = Offset(0.71f * size.width, 0.54f * size.height)
-                                                )
-                                            }
+                                                Spacer(modifier = Modifier.height(16.dp))
 
-                                            // Text Info Overlays (New Delhi Clock, matching Image 3)
-                                            Column(
-                                                modifier = Modifier
-                                                    .align(Alignment.BottomStart)
-                                                    .padding(24.dp)
-                                            ) {
-                                                Text(
-                                                    text = "New Delhi",
-                                                    color = Color.Red,
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                                Text(
-                                                    text = timeString,
-                                                    color = Color.Red,
-                                                    fontSize = 42.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.Center,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    IconButton(
+                                                        onClick = { viewModel.skipPrevious() },
+                                                        modifier = Modifier.size(48.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.SkipPrevious,
+                                                            contentDescription = "Prev",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(32.dp)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(24.dp))
+                                                    IconButton(
+                                                        onClick = { viewModel.playPauseMusic() },
+                                                        modifier = Modifier.size(48.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                            contentDescription = "Play/Pause",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(38.dp)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(24.dp))
+                                                    IconButton(
+                                                        onClick = { viewModel.skipNext() },
+                                                        modifier = Modifier.size(48.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.SkipNext,
+                                                            contentDescription = "Next",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(32.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.height(12.dp))
+
+                                                Column(modifier = Modifier.fillMaxWidth()) {
+                                                    val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
+                                                    Slider(
+                                                        value = progress,
+                                                        onValueChange = { viewModel.seekTo((it * currentTrack.durationMs).toLong()) },
+                                                        colors = SliderDefaults.colors(
+                                                            thumbColor = Color.White,
+                                                            activeTrackColor = Color.White,
+                                                            inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                                                        ),
+                                                        modifier = Modifier.height(12.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        val elapsedSec = currentTrack.progressMs / 1000
+                                                        val elapsed = String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
+                                                        val durationSec = currentTrack.durationMs / 1000
+                                                        val remainingSec = (currentTrack.durationMs - currentTrack.progressMs) / 1000
+                                                        val remaining = if (durationSec > 0) String.format("-%d:%02d", remainingSec / 60, remainingSec % 60) else "-0:00"
+                                                        Text(elapsed, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                                                        Text(remaining, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    2 -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (hasActiveRoute) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth(0.85f)
+                                                        .clip(RoundedCornerShape(24.dp))
+                                                        .background(Color.White.copy(alpha = 0.03f))
+                                                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                                                        .padding(24.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text("DRIVING DIRECTIONS", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                        Icon(Icons.Default.Navigation, contentDescription = "Navigation", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                                    }
+                                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        Text(destinationName ?: "Destination", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                        Text(currentNavInstruction ?: "Live Guidance", color = Color.LightGray, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    }
+                                                    val distStr = if (distanceToTurnMeters > 1000) {
+                                                        String.format(Locale.getDefault(), "In %.1f km", distanceToTurnMeters / 1000.0)
+                                                    } else {
+                                                        "In $distanceToTurnMeters m"
+                                                    }
+                                                    Text(distStr, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            } else {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Map, contentDescription = "Map HUD", tint = Color.Gray, modifier = Modifier.size(48.dp))
+                                                    Text("Live Navigation Offline", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                                    Text("Google Maps instructions sync automatically here", color = Color.DarkGray, fontSize = 11.sp)
+                                                }
                                             }
                                         }
                                     }
@@ -445,274 +573,183 @@ fun DeskModeScreen(
                             }
                         }
                     }
-                } else {
-                    // LAYOUT 2: SYSTEM SPLIT GRID DASHBOARD (Hectic Mode)
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // LEFT PANEL: Customizable Large Clock / Watch Face Area
-                        Box(
-                            modifier = Modifier
-                                .weight(1.1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(28.dp))
-                                .background(Color.Black.copy(alpha = 0.4f))
-                                .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(28.dp))
-                                .clickable { leftPanelLayoutIndex = (leftPanelLayoutIndex + 1) % 4 }
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
+                    UiMode.CUSTOMISED -> {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Crossfade(targetState = leftPanelLayoutIndex) { layoutIndex ->
-                                when (layoutIndex) {
-                                    0 -> {
-                                        Column(horizontalAlignment = Alignment.Start) {
-                                            Text(
-                                                text = timeString,
-                                                fontSize = 94.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                lineHeight = 94.sp,
-                                                letterSpacing = (-3).sp
-                                            )
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text(
-                                                text = dateString.uppercase(),
-                                                color = Color.LightGray,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 2.sp
-                                            )
-                                            Spacer(modifier = Modifier.height(14.dp))
-                                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.CloudQueue, contentDescription = "Weather", tint = Color.Gray, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("22°C • Clear", color = Color.Gray, fontSize = 12.sp)
-                                                }
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.BatteryChargingFull, contentDescription = "Battery", tint = if (isCharging) Color.Green else Color.Gray, modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("$batteryPercentage%", color = Color.Gray, fontSize = 12.sp)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    1 -> {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Box(modifier = Modifier.size(140.dp)) {
-                                                val dialPrimaryColor = MaterialTheme.colorScheme.primary
-                                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                                    val r = size.minDimension / 2
-                                                    val center = Offset(size.width / 2, size.height / 2)
-                                                    drawCircle(Color.White.copy(alpha = 0.05f), radius = r)
-                                                    drawCircle(dialPrimaryColor, radius = r, style = Stroke(width = 2.dp.toPx()))
-                                                    
-                                                    // Dial lines
-                                                    for (angle in 0..11) {
-                                                        val rad = Math.toRadians((angle * 30).toDouble())
-                                                        val start = Offset(
-                                                            (center.x + (r - 10.dp.toPx()) * Math.sin(rad)).toFloat(),
-                                                            (center.y - (r - 10.dp.toPx()) * Math.cos(rad)).toFloat()
-                                                        )
-                                                        val end = Offset(
-                                                            (center.x + r * Math.sin(rad)).toFloat(),
-                                                            (center.y - r * Math.cos(rad)).toFloat()
-                                                        )
-                                                        drawLine(Color.White.copy(alpha = 0.3f), start, end, strokeWidth = 2.dp.toPx())
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(28.dp))
+                                    .background(Color.Black.copy(alpha = 0.4f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(28.dp))
+                                    .clickable { leftPanelLayoutIndex = (leftPanelLayoutIndex + 1) % 4 }
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Crossfade(targetState = leftPanelLayoutIndex) { layoutIndex ->
+                                    when (layoutIndex) {
+                                        0 -> {
+                                            Column(horizontalAlignment = Alignment.Start) {
+                                                Text(
+                                                    text = timeString,
+                                                    fontSize = 94.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    lineHeight = 94.sp,
+                                                    letterSpacing = (-3).sp
+                                                )
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Text(
+                                                    text = dateString.uppercase(),
+                                                    color = Color.LightGray,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 2.sp
+                                                )
+                                                Spacer(modifier = Modifier.height(14.dp))
+                                                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(Icons.Default.CloudQueue, contentDescription = "Weather", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("22°C • Clear", color = Color.Gray, fontSize = 12.sp)
                                                     }
-                                                    
-                                                    // Hour hand
-                                                    val hrRad = Math.toRadians((hour * 30 + minute * 0.5).toDouble())
-                                                    drawLine(
-                                                        Color.White,
-                                                        center,
-                                                        Offset((center.x + r * 0.5 * Math.sin(hrRad)).toFloat(), (center.y - r * 0.5 * Math.cos(hrRad)).toFloat()),
-                                                        strokeWidth = 4.dp.toPx()
-                                                    )
-                                                    
-                                                    // Minute hand
-                                                    val minRad = Math.toRadians((minute * 6).toDouble())
-                                                    drawLine(
-                                                        Color.White.copy(alpha = 0.8f),
-                                                        center,
-                                                        Offset((center.x + r * 0.7 * Math.sin(minRad)).toFloat(), (center.y - r * 0.7 * Math.cos(minRad)).toFloat()),
-                                                        strokeWidth = 3.dp.toPx()
-                                                    )
-                                                    
-                                                    // Center pin
-                                                    drawCircle(dialPrimaryColor, radius = 5.dp.toPx())
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(Icons.Default.BatteryChargingFull, contentDescription = "Battery", tint = if (isCharging) Color.Green else Color.Gray, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text("$batteryPercentage%", color = Color.Gray, fontSize = 12.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        1 -> {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                DeskClock(
+                                                    hour = hour,
+                                                    minute = minute,
+                                                    second = second,
+                                                    clockTheme = ClockTheme.VECTOR_ANALOGUE,
+                                                    modifier = Modifier.size(150.dp)
+                                                )
+                                            }
+                                        }
+                                        2 -> {
+                                            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Text("WORLD TIME ZONES", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                listOf(
+                                                    Pair("New York", "America/New_York"),
+                                                    Pair("London", "Europe/London"),
+                                                    Pair("Tokyo", "Asia/Tokyo"),
+                                                    Pair("Sydney", "Australia/Sydney")
+                                                ).forEach { zone ->
+                                                    val format = sdf.apply { timeZone = TimeZone.getTimeZone(zone.second) }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(zone.first, color = Color.LightGray, fontSize = 12.sp)
+                                                        Text(format.format(Date(frameTime)), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        3 -> {
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Text("SYSTEM HEALTH", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                listOf(
+                                                    Triple("RAM UTILITY", "$ramUsagePercent%", ramUsagePercent / 100f),
+                                                    Triple("CHIP TEMP", "$deviceTemp°C", deviceTemp / 100f),
+                                                    Triple("BATTERY LIFE", "$batteryPercentage%", batteryPercentage / 100f)
+                                                ).forEach { metric ->
+                                                    Column {
+                                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                            Text(metric.first, color = Color.Gray, fontSize = 10.sp)
+                                                            Text(metric.second, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Box(modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                                            Box(modifier = Modifier.fillMaxWidth(metric.third).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                    2 -> {
-                                        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            Text("WORLD TIME ZONES", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                            listOf(
-                                                Pair("New York", "America/New_York"),
-                                                Pair("London", "Europe/London"),
-                                                Pair("Tokyo", "Asia/Tokyo")
-                                            ).forEach { zone ->
-                                                sdf.timeZone = TimeZone.getTimeZone(zone.second)
+                                }
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(28.dp))
+                                    .background(Color.Black.copy(alpha = 0.4f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.05f), RoundedCornerShape(28.dp))
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Crossfade(targetState = rightCard1Index) { index ->
+                                    when (index) {
+                                        0 -> {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clickable { rightCard1Index = (rightCard1Index + 1) % 3 },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                SpotifyWidgetHostView(
+                                                    title = currentTrack.title,
+                                                    artist = if (!isNotificationAccessGranted) "Tap to link Spotify" else currentTrack.artist,
+                                                    isPlaying = currentTrack.isPlaying,
+                                                    albumArtBitmap = bitmap,
+                                                    onPlayPauseClick = { viewModel.playPauseMusic() },
+                                                    onPreviousClick = { viewModel.skipPrevious() },
+                                                    onNextClick = { viewModel.skipNext() },
+                                                    onWidgetClick = { showPermissionDialog = true },
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(84.dp)
+                                                )
+                                            }
+                                        }
+                                        1 -> {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clickable { rightCard1Index = (rightCard1Index + 1) % 3 },
+                                                verticalArrangement = Arrangement.SpaceBetween
+                                            ) {
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Text(zone.first, color = Color.LightGray, fontSize = 13.sp)
-                                                    Text(sdf.format(Date(frameTime)), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                                    Text("CALENDAR EVENTS", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                                    Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar", tint = Color.Gray, modifier = Modifier.size(12.dp))
                                                 }
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text("Next Meeting", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Product Review @ 2:00 PM", color = Color.Gray, fontSize = 11.sp)
+                                                }
+                                                Text("Calendar synced", color = Color.DarkGray, fontSize = 10.sp)
                                             }
                                         }
-                                    }
-                                    3 -> {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text("QUOTE OF THE DAY", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                            Text(
-                                                text = "\"The true engine of premium software design lies in simplicity and micro-details.\"",
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                textAlign = TextAlign.Start
-                                            )
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text("- Fontainment OS Design Lead", color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // RIGHT PANEL: Card 1 (Music) and Card 2 (System Stats/Nav)
-                        Column(
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .fillMaxHeight(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            // CARD 1: Music Controls
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                                    .clickable { rightCard1Index = (rightCard1Index + 1) % 3 },
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF111215)),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-                            ) {
-                                Box(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                                    Crossfade(targetState = rightCard1Index) { index ->
-                                        when (index) {
-                                            0 -> {
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    SpotifyWidgetHostView(
-                                                        title = currentTrack.title,
-                                                        artist = currentTrack.artist,
-                                                        isPlaying = currentTrack.isPlaying,
-                                                        albumArtBitmap = bitmap,
-                                                        onPlayPauseClick = { viewModel.playPauseMusic() },
-                                                        onPreviousClick = { viewModel.skipPrevious() },
-                                                        onNextClick = { viewModel.skipNext() },
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .height(84.dp)
-                                                    )
-                                                }
-                                            }
-                                            1 -> {
-                                                Column(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    verticalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text("CALENDAR EVENTS", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                                        Icon(Icons.Default.CalendarMonth, contentDescription = "Calendar", tint = Color.Gray, modifier = Modifier.size(12.dp))
-                                                    }
-                                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                        Text("• 09:30 AM: Weekly Standup", color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                        Text("• 12:45 PM: Lunch Meeting", color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                    }
-                                                }
-                                            }
-                                            2 -> {
-                                                Column(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    verticalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text("WEATHER", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                                        Icon(Icons.Default.WbSunny, contentDescription = "Weather", tint = Color.Yellow, modifier = Modifier.size(12.dp))
-                                                    }
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text("22°", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                                                        Spacer(modifier = Modifier.width(12.dp))
-                                                        Column {
-                                                            Text("CLEAR SKY", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                                            Text("Wind: 8 km/h", color = Color.Gray, fontSize = 9.sp)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // CARD 2: Live Nav / System Stats
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                                    .clickable { rightCard2Index = (rightCard2Index + 1) % 3 },
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF111215)),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
-                            ) {
-                                Box(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                                    Crossfade(targetState = rightCard2Index) { index ->
-                                        when (index) {
-                                            0 -> {
-                                                Column(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    verticalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Text("SYSTEM STATUS", color = Color.DarkGray, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                        Column {
-                                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                                Text("RAM CAPACITY", color = Color.Gray, fontSize = 10.sp)
-                                                                Text("$ramUsagePercent%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                            }
-                                                            Box(modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
-                                                                Box(modifier = Modifier.fillMaxWidth(ramUsagePercent / 100f).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            1 -> {
+                                        2 -> {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clickable { rightCard1Index = (rightCard1Index + 1) % 3 }
+                                            ) {
                                                 Column(
                                                     modifier = Modifier.fillMaxSize(),
                                                     verticalArrangement = Arrangement.SpaceBetween
@@ -733,53 +770,108 @@ fun DeskModeScreen(
                                                     }
                                                 }
                                             }
-                                            2 -> {
-                                                if (hasActiveRoute) {
-                                                    Column(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        verticalArrangement = Arrangement.SpaceBetween
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text("LIVE NAVIGATION", color = MaterialTheme.colorScheme.primary, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                                            Icon(Icons.Default.Navigation, contentDescription = "Nav", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
-                                                        }
-                                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                            Text(destinationName ?: "Destination", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                            Text(currentNavInstruction ?: "Driving", color = Color.LightGray, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                        }
-                                                        val distStr = if (distanceToTurnMeters > 1000) {
-                                                            String.format(Locale.getDefault(), "In %.1f km", distanceToTurnMeters / 1000.0)
-                                                        } else {
-                                                            "In $distanceToTurnMeters m"
-                                                        }
-                                                        Text(distStr, color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                    }
-                                                } else {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .clip(RoundedCornerShape(16.dp))
-                                                            .background(Color.White.copy(alpha = 0.02f))
-                                                            .padding(10.dp)
-                                                    ) {
-                                                        Text("No active route", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.align(Alignment.Center))
-                                                    }
-                                                }
-                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                    UiMode.CLASSIC -> {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(28.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                DeskClock(
+                                    hour = hour,
+                                    minute = minute,
+                                    second = second,
+                                    clockTheme = ClockTheme.VECTOR_ANALOGUE
+                                )
+                            }
+                            
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 12.dp),
+                                verticalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("TEMP", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text("$deviceTemp°C", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Box(modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                        val progress = (deviceTemp / 100f).coerceIn(0f, 1f)
+                                        Box(modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color.White.copy(alpha = 0.6f)))
+                                    }
+                                }
+                                
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("BATTERY", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text("$batteryPercentage%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Box(modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                        val progress = (batteryPercentage / 100f).coerceIn(0f, 1f)
+                                        Box(modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().background(if (isCharging) Color(0xFF39FF14) else Color.White))
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("RAM LIMIT", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text("$ramUsagePercent%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Box(modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
+                                        val progress = (ramUsagePercent / 100f).coerceIn(0f, 1f)
+                                        Box(modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color.White.copy(alpha = 0.6f)))
+                                    }
+                                }
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.1f)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SpotifyWidgetHostView(
+                                    title = currentTrack.title,
+                                    artist = if (!isNotificationAccessGranted) "Tap to link Spotify" else currentTrack.artist,
+                                    isPlaying = currentTrack.isPlaying,
+                                    albumArtBitmap = bitmap,
+                                    onPlayPauseClick = { viewModel.playPauseMusic() },
+                                    onPreviousClick = { viewModel.skipPrevious() },
+                                    onNextClick = { viewModel.skipNext() },
+                                    onWidgetClick = { showPermissionDialog = true },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(84.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            // OLED Protection text indicator
+            // OLED Protection Indicator
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -789,6 +881,166 @@ fun DeskModeScreen(
                 Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("OLED PROTECTION ACTIVE", color = Color.DarkGray, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+        }
+
+        // SETTINGS CUSTOMISATION DRAWER OVERLAY
+        if (showSettingsDrawer) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable { showSettingsDrawer = false },
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(320.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF16171A)),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Text(
+                            text = "Customisation",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        // 1. UI MODE SELECTION
+                        Column {
+                            Text("INTERFACE STYLE", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                UiMode.values().forEach { mode ->
+                                    val isSelected = uiMode == mode
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent)
+                                            .border(1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.setUiMode(mode) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
+                                            color = if (isSelected) Color.White else Color.Gray,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. CLOCK THEME SELECTION
+                        Column {
+                            Text("STANDBY CLOCK THEME", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ClockTheme.values().forEach { theme ->
+                                    val isSelected = clockTheme == theme
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.05f) else Color.Transparent)
+                                            .border(1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.setClockTheme(theme) }
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = when(theme) {
+                                                ClockTheme.ORANGE_STANDBY -> "Orange Standby"
+                                                ClockTheme.MINIMALIST_WHITE -> "Minimalist White"
+                                                ClockTheme.RETRO_GREEN -> "Retro Terminal Green"
+                                                ClockTheme.VECTOR_ANALOGUE -> "Vector Analogue Clock"
+                                            },
+                                            color = if (isSelected) Color.White else Color.Gray,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFFFF4500))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. BACKGROUND SELECTION
+                        Column {
+                            Text("BACKGROUND SYSTEM", color = Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                BackgroundStyle.values().forEach { style ->
+                                    val isSelected = backgroundStyle == style
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.05f) else Color.Transparent)
+                                            .border(1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                            .clickable { viewModel.setBackgroundStyle(style) }
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = when(style) {
+                                                BackgroundStyle.DYNAMIC_BLUR -> "Dynamic Album Art Blur"
+                                                BackgroundStyle.PITCH_BLACK -> "Pitch Black (OLED)"
+                                                BackgroundStyle.CHARCOAL_GREY -> "Sleek Charcoal Solid"
+                                            },
+                                            color = if (isSelected) Color.White else Color.Gray,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.weight(1f))
+                        
+                        Button(
+                            onClick = { showSettingsDrawer = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.08f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        ) {
+                            Text("Apply and Save", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
 
@@ -805,7 +1057,7 @@ fun DeskModeScreen(
                     modifier = Modifier.width(420.dp),
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF16171A)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
