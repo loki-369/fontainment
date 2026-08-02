@@ -78,6 +78,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,6 +113,10 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.aspectRatio
 import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -242,8 +247,8 @@ fun DriveModeScreen(
     var showPhoneKeypadDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     
-    // Toggle between Google Map and premium Hud Map styling fallback
-    var mapHUDViewMode by remember { mutableStateOf(false) }
+    // Toggle between OpenStreetMap (0), Google Map (1), and premium Hud Map styling fallback (2)
+    var mapMode by remember { mutableStateOf(0) }
 
     // Toggle between standard split grid and ultra minimal full screen map layout
     var isMinimalMode by remember { mutableStateOf(false) }
@@ -284,80 +289,87 @@ fun DriveModeScreen(
                         .background(Color(0xFF141519))
                         .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
                 ) {
-                    if (mapHUDViewMode) {
-                        // Premium Minimal HUD Map View Fallback
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val width = size.width
-                            val height = size.height
-                            
-                            // Highways
-                            drawPath(
-                                path = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(0f, height * 0.45f)
-                                    cubicTo(width * 0.3f, height * 0.3f, width * 0.6f, height * 0.75f, width, height * 0.6f)
-                                },
-                                color = primaryColor.copy(alpha = 0.2f),
-                                style = Stroke(width = 24f)
-                            )
-                            // Local roads
-                            drawPath(
-                                path = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(width * 0.25f, 0f)
-                                    lineTo(width * 0.55f, height)
-                                    moveTo(width * 0.8f, 0f)
-                                    lineTo(width * 0.4f, height)
-                                },
-                                color = Color.White.copy(alpha = 0.04f),
-                                style = Stroke(width = 8f)
-                            )
-                            // Vehicle position
-                            drawCircle(
-                                color = primaryColor,
-                                radius = 16f,
-                                center = Offset(width * 0.44f, height * 0.54f)
-                            )
-                            drawCircle(
-                                color = primaryColor.copy(alpha = 0.25f),
-                                radius = 32f,
-                                center = Offset(width * 0.44f, height * 0.54f)
+                    when (mapMode) {
+                        0 -> {
+                            // OpenStreetMap WebView styled Leaflet dark map
+                            OpenStreetMapWebView(
+                                lat = currentLatLng.latitude,
+                                lng = currentLatLng.longitude,
+                                routePoints = routePoints,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
-                    } else {
-                        // Real Google Maps Compose Component
-                        GoogleMap(
-                            modifier = Modifier.fillMaxSize(),
-                            cameraPositionState = cameraPositionState,
-                            properties = MapProperties(
-                                isMyLocationEnabled = false, // handled with mock marker or fine location
-                                mapStyleOptions = MapStyleOptions(MapStyleDarkJson),
-                                isBuildingEnabled = true
-                            ),
-                            uiSettings = MapUiSettings(
-                                zoomControlsEnabled = false,
-                                compassEnabled = true
-                            )
-                        ) {
-                            // Current Location vehicle indicator marker
-                            Marker(
-                                state = MarkerState(position = currentLatLng),
-                                title = "Current Location",
-                                snippet = vehicleState.currentRoadName
-                            )
-
-                            // Quick Action category and destination search markers
-                            mapMarkers.forEach { marker ->
-                                Marker(
-                                    state = MarkerState(position = marker.position),
-                                    title = marker.title,
-                                    snippet = marker.snippet
+                        1 -> {
+                            // Real Google Maps Compose Component
+                            GoogleMap(
+                                modifier = Modifier.fillMaxSize(),
+                                cameraPositionState = cameraPositionState,
+                                properties = MapProperties(
+                                    isMyLocationEnabled = false,
+                                    mapStyleOptions = MapStyleOptions(MapStyleDarkJson),
+                                    isBuildingEnabled = true
+                                ),
+                                uiSettings = MapUiSettings(
+                                    zoomControlsEnabled = false,
+                                    compassEnabled = true
                                 )
-                            }
+                            ) {
+                                Marker(
+                                    state = MarkerState(position = currentLatLng),
+                                    title = "Current Location",
+                                    snippet = vehicleState.currentRoadName
+                                )
 
-                            if (routePoints.isNotEmpty()) {
-                                Polyline(
-                                    points = routePoints,
+                                mapMarkers.forEach { marker ->
+                                    Marker(
+                                        state = MarkerState(position = marker.position),
+                                        title = marker.title,
+                                        snippet = marker.snippet
+                                    )
+                                }
+
+                                if (routePoints.isNotEmpty()) {
+                                    Polyline(
+                                        points = routePoints,
+                                        color = primaryColor,
+                                        width = 10f
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            // Premium Minimal HUD Map View Fallback
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val width = size.width
+                                val height = size.height
+                                
+                                drawPath(
+                                    path = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(0f, height * 0.45f)
+                                        cubicTo(width * 0.3f, height * 0.3f, width * 0.6f, height * 0.75f, width, height * 0.6f)
+                                    },
+                                    color = primaryColor.copy(alpha = 0.2f),
+                                    style = Stroke(width = 24f)
+                                )
+                                drawPath(
+                                    path = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(width * 0.25f, 0f)
+                                        lineTo(width * 0.55f, height)
+                                        moveTo(width * 0.8f, 0f)
+                                        lineTo(width * 0.4f, height)
+                                    },
+                                    color = Color.White.copy(alpha = 0.04f),
+                                    style = Stroke(width = 8f)
+                                )
+                                drawCircle(
                                     color = primaryColor,
-                                    width = 10f
+                                    radius = 16f,
+                                    center = Offset(width * 0.44f, height * 0.54f)
+                                )
+                                drawCircle(
+                                    color = primaryColor.copy(alpha = 0.25f),
+                                    radius = 32f,
+                                    center = Offset(width * 0.44f, height * 0.54f)
                                 )
                             }
                         }
@@ -443,17 +455,29 @@ fun DriveModeScreen(
                             )
                         }
 
-                        // Button 2: Map style toggle (HUD / satellite)
+                        // Button 2: Map Provider cycle toggle (OSM / Google Maps / Compass HUD)
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.7f))
                                 .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
-                                .clickable { mapHUDViewMode = !mapHUDViewMode }
+                                .clickable {
+                                    mapMode = (mapMode + 1) % 3
+                                    val modeLabel = when(mapMode) {
+                                        0 -> "OpenStreetMap (Online)"
+                                        1 -> "Google Maps (API Key)"
+                                        else -> "Mock Compass HUD"
+                                    }
+                                    Toast.makeText(context, "Map Provider: ${"$"}{modeLabel}", Toast.LENGTH_SHORT).show()
+                                }
                                 .padding(10.dp)
                         ) {
                             Icon(
-                                imageVector = if (mapHUDViewMode) Icons.Default.DirectionsCar else Icons.Default.Map,
+                                imageVector = when(mapMode) {
+                                    0 -> Icons.Default.Map        // OSM
+                                    1 -> Icons.Default.DirectionsCar // Google Maps
+                                    else -> Icons.Default.Fullscreen // HUD Compass
+                                },
                                 contentDescription = "Map Style Toggle",
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
@@ -782,25 +806,169 @@ fun DriveModeScreen(
                             )
                             .blur(40.dp)
                     )
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        SpotifyWidgetHostView(
-                            title = currentTrack.title,
-                            artist = if (!isNotificationAccessGranted) "Tap to link Spotify" else currentTrack.artist,
-                            isPlaying = currentTrack.isPlaying,
-                            albumArtBitmap = bitmap,
-                            onPlayPauseClick = { viewModel.playPauseMusic() },
-                            onPreviousClick = { viewModel.skipPrevious() },
-                            onNextClick = { viewModel.skipNext() },
-                            onWidgetClick = { showPermissionDialog = true },
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "NOW PLAYING",
+                                color = Color.Gray,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+
+                        // Large Album Art Cover
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(84.dp)
-                        )
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.03f))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                                .clickable {
+                                    try {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("com.spotify.music")
+                                        if (launchIntent != null) {
+                                            context.startActivity(launchIntent)
+                                        } else {
+                                            Toast.makeText(context, "Spotify is not installed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Cover Art",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.3f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = Color.Gray.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Text metadata
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text(
+                                text = if (currentTrack.title.isBlank() || currentTrack.title == "Not Playing") "Not Playing" else currentTrack.title,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (currentTrack.artist.isBlank() || currentTrack.artist == "Tap to connect Spotify") "Tap to link Spotify" else currentTrack.artist,
+                                color = Color.LightGray,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable {
+                                    if (!isNotificationAccessGranted) {
+                                        showPermissionDialog = true
+                                    }
+                                }
+                            )
+                        }
+
+                        // Seek progress slider
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            val progress = if (currentTrack.durationMs > 0) currentTrack.progressMs.toFloat() / currentTrack.durationMs.toFloat() else 0f
+                            val safeProgress = progress.coerceIn(0f, 1f)
+                            Slider(
+                                value = safeProgress,
+                                onValueChange = { viewModel.seekTo((it * currentTrack.durationMs).toLong()) },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier.height(8.dp)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                val elapsedSec = currentTrack.progressMs / 1000
+                                val elapsed = String.format("%d:%02d", elapsedSec / 60, elapsedSec % 60)
+                                val durationSec = currentTrack.durationMs / 1000
+                                val remainingSec = (currentTrack.durationMs - currentTrack.progressMs) / 1000
+                                val remaining = if (durationSec > 0) String.format("-%d:%02d", remainingSec / 60, remainingSec % 60) else "-0:00"
+                                Text(elapsed, color = Color.Gray, fontSize = 9.sp)
+                                Text(remaining, color = Color.Gray, fontSize = 9.sp)
+                            }
+                        }
+
+                        // Flat transport controls
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.skipPrevious() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Default.SkipPrevious, "Prev", tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            IconButton(
+                                onClick = { viewModel.playPauseMusic() },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (currentTrack.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = "Play/Pause",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            IconButton(
+                                onClick = { viewModel.skipNext() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                        }
                     }
                     }
                 }
@@ -823,10 +991,7 @@ fun DriveModeScreen(
                 IconButton(onClick = { }) {
                     Icon(Icons.Default.DirectionsCar, "Drive", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 }
-                // Quick actions trigger map pins
-                IconButton(onClick = { viewModel.triggerQuickActionMarkers("coffee") }) {
-                    Icon(Icons.Default.LocalCafe, "Coffee Finder", tint = Color.White, modifier = Modifier.size(24.dp))
-                }
+
                 // Dock Button StandBy Desk Mode
                 IconButton(onClick = { navController.navigate(Screen.DeskMode.route) }) {
                     Icon(Icons.Default.Home, "Desk Standby Mode", tint = Color.Gray, modifier = Modifier.size(24.dp))
@@ -1451,4 +1616,87 @@ fun DriveModeScreen(
             }
         }
     }
+}
+
+@Composable
+fun OpenStreetMapWebView(
+    lat: Double,
+    lng: Double,
+    routePoints: List<LatLng>,
+    modifier: Modifier = Modifier
+) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+
+    LaunchedEffect(lat, lng) {
+        webViewRef?.evaluateJavascript("updateLocation($lat, $lng)", null)
+    }
+
+    LaunchedEffect(routePoints) {
+        val pointsJson = routePoints.map { listOf(it.latitude, it.longitude) }.toString()
+        webViewRef?.evaluateJavascript("updateRoute('$pointsJson')", null)
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                webViewClient = WebViewClient()
+                val html = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                        <style>
+                            html, body, #map { height: 100%; margin: 0; padding: 0; background: #121212; }
+                            .leaflet-control-zoom { display: none !important; }
+                            .leaflet-control-attribution { display: none !important; }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="map"></div>
+                        <script>
+                            var map = L.map('map', {
+                                zoomControl: false,
+                                attributionControl: false
+                            }).setView([$lat, $lng], 15);
+
+                            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                                maxZoom: 20
+                            }).addTo(map);
+
+                            var vehicleIcon = L.divIcon({
+                                html: '<div style="background-color: #1DB954; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 8px #1DB954;"></div>',
+                                iconSize: [20, 20],
+                                iconAnchor: [10, 10]
+                            });
+
+                            var marker = L.marker([$lat, $lng], {icon: vehicleIcon}).addTo(map);
+
+                            var polyline = L.polyline([], {color: '#1DB954', weight: 5}).addTo(map);
+
+                            function updateLocation(lat, lng) {
+                                var loc = [lat, lng];
+                                map.panTo(loc);
+                                marker.setLatLng(loc);
+                            }
+
+                            function updateRoute(pointsJson) {
+                                try {
+                                    var points = JSON.parse(pointsJson);
+                                    polyline.setLatLngs(points);
+                                } catch(e){}
+                            }
+                        </script>
+                    </body>
+                    </html>
+                """.trimIndent()
+                loadDataWithBaseURL("https://localhost", html, "text/html", "UTF-8", null)
+                webViewRef = this
+            }
+        },
+        modifier = modifier
+    )
 }

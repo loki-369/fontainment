@@ -233,6 +233,39 @@ fun DeskModeScreen(
             BackgroundStyle.PITCH_BLACK -> {
                 // OLED battery saving absolute black
             }
+            BackgroundStyle.SUNSET_GRADIENT -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFE94057), Color(0xFFF27121), Color(0xFF8A2387))
+                            )
+                        )
+                )
+            }
+            BackgroundStyle.OCEAN_GRADIENT -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF00c6ff), Color(0xFF0072ff))
+                            )
+                        )
+                )
+            }
+            BackgroundStyle.FOREST_GRADIENT -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF11998e), Color(0xFF38ef7d))
+                            )
+                        )
+                )
+            }
         }
 
         // Screen overlay content
@@ -1011,6 +1044,9 @@ fun DeskModeScreen(
                                                 BackgroundStyle.DYNAMIC_BLUR -> "Dynamic Album Art Blur"
                                                 BackgroundStyle.PITCH_BLACK -> "Pitch Black (OLED)"
                                                 BackgroundStyle.CHARCOAL_GREY -> "Sleek Charcoal Solid"
+                                                BackgroundStyle.SUNSET_GRADIENT -> "Sunset Gradient"
+                                                BackgroundStyle.OCEAN_GRADIENT -> "Ocean Gradient"
+                                                BackgroundStyle.FOREST_GRADIENT -> "Forest Gradient"
                                             },
                                             color = if (isSelected) Color.White else Color.Gray,
                                             fontSize = 12.sp,
