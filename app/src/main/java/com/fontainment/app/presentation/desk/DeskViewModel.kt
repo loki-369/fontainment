@@ -158,6 +158,15 @@ class DeskViewModel @Inject constructor(
     )
     val backgroundStyle: StateFlow<BackgroundStyle> = _backgroundStyle.asStateFlow()
 
+    private val _customBgColor1 = MutableStateFlow(sharedPrefs.getString("bg_custom_color_1", "#0F0C1B") ?: "#0F0C1B")
+    val customBgColor1: StateFlow<String> = _customBgColor1.asStateFlow()
+
+    private val _customBgColor2 = MutableStateFlow(sharedPrefs.getString("bg_custom_color_2", "#07121C") ?: "#07121C")
+    val customBgColor2: StateFlow<String> = _customBgColor2.asStateFlow()
+
+    private val _bgAnimType = MutableStateFlow(sharedPrefs.getString("bg_anim_type", "shifting_mesh") ?: "shifting_mesh")
+    val bgAnimType: StateFlow<String> = _bgAnimType.asStateFlow()
+
     fun setUiMode(mode: UiMode) {
         _uiMode.value = mode
         sharedPrefs.edit().putString("ui_mode", mode.name).apply()
@@ -171,6 +180,20 @@ class DeskViewModel @Inject constructor(
     fun setBackgroundStyle(style: BackgroundStyle) {
         _backgroundStyle.value = style
         sharedPrefs.edit().putString("background_style", style.name).apply()
+    }
+
+    fun setCustomBgColors(color1: String, color2: String) {
+        _customBgColor1.value = color1
+        _customBgColor2.value = color2
+        sharedPrefs.edit()
+            .putString("bg_custom_color_1", color1)
+            .putString("bg_custom_color_2", color2)
+            .apply()
+    }
+
+    fun setBgAnimType(type: String) {
+        _bgAnimType.value = type
+        sharedPrefs.edit().putString("bg_anim_type", type).apply()
     }
 
     override fun onCleared() {
@@ -193,5 +216,5 @@ enum class ClockTheme {
 }
 
 enum class BackgroundStyle {
-    DYNAMIC_BLUR, PITCH_BLACK, CHARCOAL_GREY, SUNSET_GRADIENT, OCEAN_GRADIENT, FOREST_GRADIENT
+    DYNAMIC_BLUR, PITCH_BLACK, CHARCOAL_GREY, SUNSET_GRADIENT, OCEAN_GRADIENT, FOREST_GRADIENT, CUSTOM_CANVAS
 }

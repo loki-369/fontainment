@@ -141,6 +141,9 @@ fun DeskModeScreen(
     val uiMode by viewModel.uiMode.collectAsState()
     val clockTheme by viewModel.clockTheme.collectAsState()
     val backgroundStyle by viewModel.backgroundStyle.collectAsState()
+    val customBgColor1 by viewModel.customBgColor1.collectAsState()
+    val customBgColor2 by viewModel.customBgColor2.collectAsState()
+    val bgAnimType by viewModel.bgAnimType.collectAsState()
 
     var minimalPageIndex by remember { mutableStateOf(0) } // 0: Clock, 1: Media Player, 2: Map HUD
     var showSettingsDrawer by remember { mutableStateOf(false) }
@@ -265,6 +268,73 @@ fun DeskModeScreen(
                             )
                         )
                 )
+            }
+            BackgroundStyle.CUSTOM_CANVAS -> {
+                val parseHexColor: (String, Color) -> Color = { hex, fallback ->
+                    try {
+                        Color(android.graphics.Color.parseColor(hex))
+                    } catch (e: Exception) {
+                        fallback
+                    }
+                }
+                val color1 = parseHexColor(customBgColor1, Color(0xFF0F0C1B))
+                val color2 = parseHexColor(customBgColor2, Color(0xFF07121C))
+
+                when (bgAnimType) {
+                    "solid" -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(color1)
+                        )
+                    }
+                    "gradient" -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(colors = listOf(color1, color2))
+                                )
+                        )
+                    }
+                    "shifting_mesh" -> {
+                        val animatedAngle = ambientOffset * (Math.PI / 180.0)
+                        val dx = Math.cos(animatedAngle).toFloat()
+                        val dy = Math.sin(animatedAngle).toFloat()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(color1, color2, color1),
+                                        start = Offset(0.5f - dx, 0.5f - dy),
+                                        end = Offset(0.5f + dx, 0.5f + dy)
+                                    )
+                                )
+                        )
+                    }
+                    "pulsing_aura" -> {
+                        val pulseTransition = rememberInfiniteTransition()
+                        val pulseRadius by pulseTransition.animateFloat(
+                            initialValue = 0.45f,
+                            targetValue = 0.85f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(6000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(color1, color2),
+                                        radius = 1200f * pulseRadius
+                                    )
+                                )
+                        )
+                    }
+                }
             }
         }
 
@@ -1047,6 +1117,7 @@ fun DeskModeScreen(
                                                 BackgroundStyle.SUNSET_GRADIENT -> "Sunset Gradient"
                                                 BackgroundStyle.OCEAN_GRADIENT -> "Ocean Gradient"
                                                 BackgroundStyle.FOREST_GRADIENT -> "Forest Gradient"
+                                                BackgroundStyle.CUSTOM_CANVAS -> "Custom Canvas Designer"
                                             },
                                             color = if (isSelected) Color.White else Color.Gray,
                                             fontSize = 12.sp,
@@ -1060,6 +1131,102 @@ fun DeskModeScreen(
                                                     .background(Color.White)
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+
+                        // If Custom Canvas is selected, expand custom parameters!
+                        if (backgroundStyle == BackgroundStyle.CUSTOM_CANVAS) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            
+                            // A. Color 1 selection
+                            Text("COLOR 1 (PRIMARY)", color = Color.Gray, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val paletteColors = listOf("#FF4500", "#39FF14", "#00E5FF", "#FF1744", "#FFAB00", "#D500F9", "#212121", "#0D1B2A", "#000000")
+                                paletteColors.forEach { colorHex ->
+                                    val isColorSelected = customBgColor1.equals(colorHex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(android.graphics.Color.parseColor(colorHex)))
+                                            .border(
+                                                width = if (isColorSelected) 2.dp else 1.dp,
+                                                color = if (isColorSelected) Color.White else Color.White.copy(alpha = 0.15f),
+                                                shape = CircleShape
+                                            )
+                                            .clickable { viewModel.setCustomBgColors(colorHex, customBgColor2) }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // B. Color 2 selection
+                            Text("COLOR 2 (SECONDARY)", color = Color.Gray, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val paletteColors = listOf("#FF4500", "#39FF14", "#00E5FF", "#FF1744", "#FFAB00", "#D500F9", "#212121", "#0D1B2A", "#000000")
+                                paletteColors.forEach { colorHex ->
+                                    val isColorSelected = customBgColor2.equals(colorHex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(android.graphics.Color.parseColor(colorHex)))
+                                            .border(
+                                                width = if (isColorSelected) 2.dp else 1.dp,
+                                                color = if (isColorSelected) Color.White else Color.White.copy(alpha = 0.15f),
+                                                shape = CircleShape
+                                            )
+                                            .clickable { viewModel.setCustomBgColors(customBgColor1, colorHex) }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // C. Animation style selection tabs
+                            Text("ANIMATION / RENDERING STYLE", color = Color.Gray, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val animTypes = listOf("solid", "gradient", "shifting_mesh", "pulsing_aura")
+                                animTypes.forEach { type ->
+                                    val isAnimSelected = bgAnimType == type
+                                    val label = when(type) {
+                                        "solid" -> "Solid"
+                                        "gradient" -> "Gradient"
+                                        "shifting_mesh" -> "Mesh Shift"
+                                        "pulsing_aura" -> "Pulsing Aura"
+                                        else -> type
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isAnimSelected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.03f))
+                                            .border(1.dp, if (isAnimSelected) Color.White else Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                            .clickable { viewModel.setBgAnimType(type) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isAnimSelected) Color.White else Color.Gray,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
